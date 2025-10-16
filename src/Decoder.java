@@ -5,8 +5,8 @@ import java.util.Map;
 public class Decoder  {
 
     private BTree  tree;
-    private String pathDecoded;
     private String pathEncoded;
+    private String pathDecoded;
 
     private void writeFile( ByteArrayOutputStream baos )  {
     	
