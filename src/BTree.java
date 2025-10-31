@@ -6,7 +6,7 @@ import java.util.PriorityQueue;
 
 public class BTree  {
 
-    private BNode root;
+    private BNode              root;
     private Map<Byte, Integer> headerTable;
     private Map<Byte, String>  conversionTable;
 
@@ -27,8 +27,8 @@ public class BTree  {
     
     public BTree()  {
 
-    	root       = null;
-        headerTable = new HashMap<>();
+    	root             = null;
+        headerTable      = new HashMap<>();
         conversionTable  = new HashMap<>();
     }
     

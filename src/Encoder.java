@@ -38,7 +38,7 @@ public class Encoder  {
 
         StringBuilder     sb              = new StringBuilder();
         Map<Byte, String> conversionTable = tree.getConversionTable();
-        byte[] data                       = content.toByteArray();
+        byte[]            data            = content.toByteArray();
         
         for ( byte b : data )  {
             sb.append( conversionTable.get( b ) );
@@ -63,7 +63,7 @@ public class Encoder  {
             dos.writeInt( sb.length() );
             
             int currentByte = 0;
-            int bitCount  = 0;
+            int bitCount    = 0;
             
             for ( int i = 0; i < sb.length(); i++ )  {
             	char bit    = sb.charAt( i );
@@ -73,7 +73,7 @@ public class Encoder  {
             	if ( bitCount == 8 )  {
             		dos.write( currentByte );
             		currentByte = 0;
-            		bitCount  = 0;
+            		bitCount    = 0;
             	}
             }
             
