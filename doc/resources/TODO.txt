@@ -1,0 +1,5 @@
+This is a TODO list with improvements and new features;
+
+- Add container format so woofman can only decode .woof files
+
+- Make the encode/decode command simpler 
