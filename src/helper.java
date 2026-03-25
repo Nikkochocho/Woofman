@@ -1,4 +1,6 @@
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 
 public class helper {
@@ -15,39 +17,55 @@ public class helper {
         }
     }
     
-    public static void encodeProcessing( String pathOriginal, String pathEncoded )  {
+    public static void encodeProcessing( String path ) {
 
-        File originalFile = new File( pathOriginal );
-        if ( !originalFile.exists() || !originalFile.isFile() )  {
-            System.out.println( "File not found: " + pathOriginal );
+        Path source = Path.of( path );
+        if ( !Files.exists( source ) ) {
+            System.out.println( "Not found: " + path );
             return;
         }
+
+        Path outputFile = source.resolveSibling( source.getFileName() + ".woof" );
 
         System.out.println( "Encoding..." );
-        Encoder encoder = new Encoder( pathOriginal, pathEncoded );
-        timeMeasure( () -> encoder.encode() );
-        encoder.checkCompression();
-        System.out.println( "Compression complete: " + pathEncoded );
+        Encoder encoder = new Encoder( source, outputFile );
+        timeMeasure( () -> {
+            try  {
+                encoder.encode();
+                System.out.println( "Compression complete: " + outputFile );
+            } catch ( IOException ex )  {
+                System.getLogger( helper.class.getName()).log( System.Logger.Level.ERROR, (String) null, ex );
+            }
+        } );
     }
 
-    public static void decodeProcessing( String pathEncoded, String pathDecoded )  {
+    public static void decodeProcessing( String path ) {
 
-        File encodedFile = new File( pathEncoded );
-        if ( !encodedFile.exists() || !encodedFile.isFile() )  {
-            System.out.println( "File not found: " + pathEncoded );
+        Path inputFile = Path.of( path );
+        if ( !Files.exists( inputFile ) || !Files.isRegularFile( inputFile ) ) {
+            System.out.println( "File not found: " + path );
             return;
         }
 
+        String fileName = inputFile.getFileName().toString();
+        String dirName  = fileName.endsWith( ".woof" ) ? fileName.replace( ".woof", "" ) : fileName + "_decoded";
+        Path   outputDir = inputFile.resolveSibling( dirName );
+
         System.out.println( "Decoding..." );
-        Decoder decoder = new Decoder( pathEncoded, pathDecoded );
-        timeMeasure( () -> decoder.decode() );
-        decoder.checkDecompression();
-        System.out.println( "Decompression complete: " + pathDecoded );
+        Decoder decoder = new Decoder( inputFile, outputDir );
+        timeMeasure( () -> {
+            try  {
+                decoder.decode();
+                System.out.println( "Decompression complete: " + outputDir );
+            } catch ( IOException ex )  {
+                System.getLogger( helper.class.getName()).log( System.Logger.Level.ERROR, (String) null, ex );
+            }
+        } );
     }
 
     public static void help() {
         System.out.println( "\n📘 Correct usage:" );
-        System.out.println( "  java Main encode <original_file> <encoded_file>" );
-        System.out.println( "  java Main decode <encoded_file> <decoded_file>" );
+        System.out.println( "  java Main encode <source>" );
+        System.out.println( "  java Main decode <compressed_file>" );
     }
 }

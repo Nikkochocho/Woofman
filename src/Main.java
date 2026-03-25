@@ -2,7 +2,7 @@ public class Main  {
 
     public static void main( String[] args )  {
 
-        if ( args.length < 3 )  {
+        if ( args.length < 2 )  {
             
             helper.help();
             return;
@@ -14,11 +14,11 @@ public class Main  {
 
             switch ( command )  {
                 case "encode":
-                    helper.encodeProcessing( args[1], args[2] );
+                    helper.encodeProcessing( args[1] );
                     break;
 
                 case "decode":
-                    helper.decodeProcessing( args[1], args[2] );
+                    helper.decodeProcessing( args[1] );
                     break;
 
                 default:
