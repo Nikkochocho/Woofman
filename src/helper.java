@@ -3,7 +3,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 
-public class helper {
+public class helper  {
 
     private static void timeMeasure( Runnable process )  {
 
@@ -17,7 +17,7 @@ public class helper {
         }
     }
     
-    public static void encodeProcessing( String path ) {
+    public static void encodeProcessing( String path )  {
 
         Path source = Path.of( path );
         if ( !Files.exists( source ) ) {
@@ -39,10 +39,10 @@ public class helper {
         } );
     }
 
-    public static void decodeProcessing( String path ) {
+    public static void decodeProcessing( String path )  {
 
         Path inputFile = Path.of( path );
-        if ( !Files.exists( inputFile ) || !Files.isRegularFile( inputFile ) ) {
+        if ( !Files.exists( inputFile ) || !Files.isRegularFile( inputFile ) )  {
             System.out.println( "File not found: " + path );
             return;
         }
@@ -63,9 +63,9 @@ public class helper {
         } );
     }
 
-    public static void help() {
+    public static void help()  {
         System.out.println( "\n📘 Correct usage:" );
-        System.out.println( "  java Main encode <source>" );
-        System.out.println( "  java Main decode <compressed_file>" );
+        System.out.println( "  java -cp out Main encode <source>" );
+        System.out.println( "  java -cp out Main decode <compressed_file>" );
     }
 }

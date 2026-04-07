@@ -59,13 +59,13 @@ javac -d out src/*.java
 - For data **compression**
 
 ```shell
-java Main encode <original_file> <encoded_file>
+java -cp out Main encode <source>
 ```
 
 - For data **decompression**
 
 ```shell
-java Main decode <encoded_file> <decoded_file>
+java -cp out Main decode <compressed_file>
 ```
 
 > [!TIP]
