@@ -1,21 +1,16 @@
 package container;
 
+import compression.CompressionAlgorithm;
+import compression.huffman.HuffmanCoder;
 import java.io.*;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.zip.CRC32;
-
-import compression.huffman.BTree;
-import util.BitWriter;
 import util.Hashing;
 
 
@@ -57,47 +52,6 @@ public class Encoder  {
             }
         }
 
-        return baos.toByteArray();
-    }
-
-    private byte[] compressFile( byte[] data ) throws IOException  {
-
-        Map<Byte, Integer> headerTable = new HashMap<>();
-        BTree              tree        = new BTree();
-
-        for ( byte b : data )  {
-            headerTable.merge( b, 1, Integer :: sum );
-        }
-
-        tree.setHeaderTable( headerTable );
-        tree.buildTree();
-
-        Map<Byte, String> conversionTable = tree.getConversionTable();
-
-        long totalBits = 0;
-        for ( byte b : data )  {
-            totalBits += conversionTable.get( b ).length();
-        }
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutputStream      dos  = new DataOutputStream( baos );
-
-        dos.writeShort( headerTable.size() );
-
-        for ( Map.Entry<Byte, Integer> entry : headerTable.entrySet() )  {
-            dos.writeByte( entry.getKey() );
-            dos.writeInt( entry.getValue() );
-        }
-
-        dos.writeInt( (int) totalBits );
-
-        BitWriter bitWriter = new BitWriter( dos );
-        for ( byte b : data )  {
-            bitWriter.writeBits( conversionTable.get( b ) );
-        }
-        bitWriter.flush();
-
-        dos.flush();
         return baos.toByteArray();
     }
 
@@ -145,7 +99,9 @@ public class Encoder  {
                 ? source.getFileName().toString()
                 : source.relativize( file ).toString().replace( '\\', '/' );
             byte[] sha256       = Hashing.sha256( originalData );
-            byte[] compressed   = compressFile( originalData );
+
+            CompressionAlgorithm algorithm  = new HuffmanCoder();
+            byte[]               compressed = algorithm.compress( originalData );
 
             pending.add( new FileEntry( relativeName, sha256, originalData.length, compressed.length, 0L, compressed ) );
 

@@ -49,3 +49,4 @@ replay_pid*
 # project resources
 resources/*
 samples/*.bin
+*.woof

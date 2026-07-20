@@ -1,13 +1,12 @@
 package cli;
 
+import container.Decoder;
+import container.Encoder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import container.Encoder;
-import container.Decoder;
-
-public class helper  {
+public class Helper  {
 
     private static void timeMeasure( Runnable process )  {
 
@@ -38,7 +37,7 @@ public class helper  {
                 encoder.encode();
                 System.out.println( "Compression complete: " + outputFile );
             } catch ( IOException ex )  {
-                System.getLogger( helper.class.getName()).log( System.Logger.Level.ERROR, (String) null, ex );
+                System.getLogger( Helper.class.getName()).log( System.Logger.Level.ERROR, (String) null, ex );
             }
         } );
     }
@@ -62,7 +61,7 @@ public class helper  {
                 decoder.decode();
                 System.out.println( "Decompression complete: " + outputDir );
             } catch ( IOException ex )  {
-                System.getLogger( helper.class.getName()).log( System.Logger.Level.ERROR, (String) null, ex );
+                System.getLogger( Helper.class.getName()).log( System.Logger.Level.ERROR, (String) null, ex );
             }
         } );
     }

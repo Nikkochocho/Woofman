@@ -1,18 +1,12 @@
 package container;
 
+import compression.CompressionAlgorithm;
+import compression.huffman.HuffmanCoder;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.zip.CRC32;
-
-import compression.huffman.BNode;
-import compression.huffman.BTree;
-import util.BitReader;
 import util.Hashing;
 
 
@@ -63,52 +57,6 @@ public class Decoder  {
         }
     }
 
-    private byte[] decompressFile( DataInputStream dis, long compressedSize ) throws IOException  {
-
-        long bytesRemaining = compressedSize;
-
-        Map<Byte, Integer> headerTable = new LinkedHashMap<>();
-        short tableSize = dis.readShort();
-        bytesRemaining -= 2;
-
-        for ( int i = 0; i < tableSize; i++ )  {
-            headerTable.put( dis.readByte(), dis.readInt() );
-            bytesRemaining -= 5;
-        }
-
-        BTree tree = new BTree();
-        tree.setHeaderTable( headerTable );
-        tree.buildTree();
-        BNode root = tree.getRoot();
-
-        int totalBits = dis.readInt();
-        bytesRemaining -= 4;
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        BitReader             bitReader = new BitReader( dis, bytesRemaining );
-        BNode                 current   = root;
-
-        boolean singleSymbol = root != null && root.getLeft() != null && root.getRight() == null;
-
-        for ( int bitsRead = 0; bitsRead < totalBits; bitsRead++ )  {
-            int bit = bitReader.readBit();
-
-            if ( singleSymbol )  {
-                baos.write( root.getLeft().getCharacter() );
-                continue;
-            }
-
-            current = ( bit == 0 ) ? current.getLeft() : current.getRight();
-
-            if ( current.isLeaf() )  {
-                baos.write( current.getCharacter() );
-                current = root;
-            }
-        }
-
-        return baos.toByteArray();
-    }
-
     public Decoder( Path input, Path output )  {
 
         this.input  = input;
@@ -141,7 +89,12 @@ public class Decoder  {
 
                 FileEntry entry = new FileEntry( name, storedHash, originalSize, compressedSize, 0L, null );
 
-                byte[] decompressed = decompressFile( dis, entry.compressedSize() );
+                byte[] compressedBytes = new byte[ (int) compressedSize ];
+                dis.readFully( compressedBytes );
+
+                CompressionAlgorithm algorithm    = new HuffmanCoder();
+                byte[]               decompressed = algorithm.decompress( compressedBytes );
+
                 byte[] actualHash   = Hashing.sha256( decompressed );
 
                 if ( !Arrays.equals( entry.sha256(), actualHash ) )  {

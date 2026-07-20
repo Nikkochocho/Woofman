@@ -6,7 +6,7 @@ public class Main  {
 
         if ( args.length < 2 )  {
             
-            helper.help();
+            Helper.help();
             return;
         }
 
@@ -16,16 +16,16 @@ public class Main  {
 
             switch ( command )  {
                 case "encode":
-                    helper.encodeProcessing( args[1] );
+                    Helper.encodeProcessing( args[1] );
                     break;
 
                 case "decode":
-                    helper.decodeProcessing( args[1] );
+                    Helper.decodeProcessing( args[1] );
                     break;
 
                 default:
                     System.out.println( "Invalid command: " + command );
-                    helper.help();
+                    Helper.help();
             }
         } catch ( Exception e )  {
             System.out.println( "Error during execution: " + e.getMessage() );
