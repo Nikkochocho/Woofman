@@ -1,3 +1,5 @@
+package compression.huffman;
+
 import java.util.Map;
 
 
@@ -7,10 +9,10 @@ public class BNode  {
     private int   frequency;
     private BNode left, right;
 
-    public BNode ( byte character, int frequencia )  {
+    public BNode ( byte character, int frequency )  {
 
         this.character = character;
-        this.frequency = frequencia;
+        this.frequency = frequency;
         left = right = null;
     }
     
@@ -18,15 +20,35 @@ public class BNode  {
     	
     	return frequency;
     }
+
+    public BNode getLeft()  {
     
-    public void setLeft( BNode esq )  {
-    	
-    	this.left = esq;
+        return left;
+    }
+
+    public BNode getRight()  {
+        
+        return right;
+    }
+
+    public byte getCharacter()  {
+        
+        return character;
+    }
+
+    public boolean isLeaf()  {
+        
+        return left == null && right == null;
     }
     
-    public void setRight( BNode dir )  {
+    public void setLeft( BNode left )  {
     	
-    	this.right = dir;
+    	this.left = left;
+    }
+    
+    public void setRight( BNode right )  {
+    	
+    	this.right = right;
     }
     
     public Map<Byte, String> buildConversionTable( String bin, Map<Byte, String> conversionTable )  {

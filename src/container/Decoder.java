@@ -1,19 +1,22 @@
+package container;
+
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.zip.CRC32;
 
+import compression.huffman.BNode;
+import compression.huffman.BTree;
+import util.BitReader;
+import util.Hashing;
+
 
 public class Decoder  {
-
-    private static final byte[] MAGIC_HEADER    = { 'W', 'O', 'O','F', '1' };
-    private static final byte[] MAGIC_FOOTER    = { '1', 'F', 'O', 'O', 'W' };
     
     private final Path input;
     private final Path output;
@@ -33,34 +36,28 @@ public class Decoder  {
 
         return baos.toByteArray();
     }
-    
-    private Map<String, Byte> invertConversionTable( Map<Byte, String> conversionTable )  {
-    	
-    	Map<String, Byte> invertedTable = new HashMap<>();
-    	
-    	for ( Map.Entry<Byte, String> entry : conversionTable.entrySet() )  {
-    		invertedTable.put( entry.getValue(), entry.getKey() );
-    	}
-    	
-    	return invertedTable;
-    }
 
     private void verifyMagicAndCRC( byte[] raw ) throws IOException  {
 
         int fl = raw.length;
 
-        if ( raw[0] != 'W' || raw[1] != 'O' || raw[2] != 'O' || raw[3] != 'F' || raw[4] != '1' )  {
-            throw new IOException( "File is not a .woof file (magic header missing!)" );
+        for ( int i = 0; i < ContainerFormat.MAGIC_HEADER.length; i++ )  {
+            if ( raw[i] != ContainerFormat.MAGIC_HEADER[i] )  {
+                throw new IOException( "File is not a .woof file (magic header missing!)" );
+            }
         }
 
-        if ( raw[fl-9] != '1' || raw[fl-8] != 'F' || raw[fl-7] != 'O' || raw[fl-6] != 'O' || raw[fl-5] != 'W' )  { 
-            throw new IOException( "File is corrupted (magic footer missing)" );
+        int footerStart = fl - 9;
+        for ( int i = 0; i < ContainerFormat.MAGIC_FOOTER.length; i++ )  {
+            if ( raw[footerStart + i] != ContainerFormat.MAGIC_FOOTER[i] )  {
+                throw new IOException( "File is corrupted (magic footer missing)" );
+            }
         }
 
         CRC32 crc = new CRC32();
         crc.update( raw, 0, fl - 4 );
         int stored = ( (raw[fl-4] & 0xFF) << 24 ) | ( (raw[fl-3] & 0xFF) << 16 )
-                   | ( (raw[fl-2] & 0xFF) <<  8 ) |   (raw[fl-1] & 0xFF);
+                | ( (raw[fl-2] & 0xFF) <<  8 ) |   (raw[fl-1] & 0xFF);
         if ( (int) crc.getValue() != stored )  {
             throw new IOException( "Invalid CRC32" );
         }
@@ -82,45 +79,34 @@ public class Decoder  {
         BTree tree = new BTree();
         tree.setHeaderTable( headerTable );
         tree.buildTree();
-        Map<String, Byte> invertedTable = invertConversionTable( tree.getConversionTable() );
+        BNode root = tree.getRoot();
 
         int totalBits = dis.readInt();
         bytesRemaining -= 4;
 
-        int                   read;
-        byte[]                buffer   = new byte[ 4096 ];
-        ByteArrayOutputStream baos     = new ByteArrayOutputStream();
-        StringBuilder         temp     = new StringBuilder();
-        int                   bitsRead = 0;
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BitReader             bitReader = new BitReader( dis, bytesRemaining );
+        BNode                 current   = root;
 
-        while ( ( read = dis.read( buffer, 0, (int) Math.min( buffer.length, bytesRemaining ) ) ) != -1 && bitsRead < totalBits )  {
-            bytesRemaining -= read;
-            for ( int i = 0; i < read && bitsRead < totalBits; i++ )  {
-                int  bitMask   = 0x80;
-                byte byteAtual = buffer[i];
-                for ( int j = 0; j < 8 && bitsRead < totalBits; j++ )  {
-                    int bit = ( byteAtual & bitMask ) != 0 ? 1 : 0;
-                    temp.append( bit );
-                    bitsRead++;
-                    if ( invertedTable.containsKey( temp.toString() ) )  {
-                        baos.write( invertedTable.get( temp.toString() ) );
-                        temp.setLength( 0 );
-                    }
-                    bitMask >>= 1;
-                }
+        boolean singleSymbol = root != null && root.getLeft() != null && root.getRight() == null;
+
+        for ( int bitsRead = 0; bitsRead < totalBits; bitsRead++ )  {
+            int bit = bitReader.readBit();
+
+            if ( singleSymbol )  {
+                baos.write( root.getLeft().getCharacter() );
+                continue;
+            }
+
+            current = ( bit == 0 ) ? current.getLeft() : current.getRight();
+
+            if ( current.isLeaf() )  {
+                baos.write( current.getCharacter() );
+                current = root;
             }
         }
 
         return baos.toByteArray();
-    }
-
-    private byte[] sha256( byte[] data )  { 
-
-        try  {
-            return MessageDigest.getInstance( "SHA-256" ).digest( data );
-        } catch ( NoSuchAlgorithmException e )  {
-            throw new RuntimeException( e );
-        }
     }
 
     public Decoder( Path input, Path output )  {
@@ -135,9 +121,7 @@ public class Decoder  {
 
         verifyMagicAndCRC( data );
 
-         try ( InputStream is = new BufferedInputStream( new FileInputStream( input.toFile() ) ) )  {
-
-            DataInputStream dis = new DataInputStream( is );
+        try ( DataInputStream dis = new DataInputStream( new ByteArrayInputStream( data ) ) )  {
 
             dis.skipBytes( 5 );                 // magic "WOOF1"
             short version   = dis.readShort();
@@ -155,14 +139,16 @@ public class Decoder  {
                 long   originalSize    = dis.readLong();
                 long   compressedSize  = dis.readLong();
 
-                byte[] decompressed = decompressFile( dis, compressedSize );
-                byte[] actualHash   = sha256( decompressed );
+                FileEntry entry = new FileEntry( name, storedHash, originalSize, compressedSize, 0L, null );
 
-                if ( !Arrays.equals( storedHash, actualHash ) )  {
-                    throw new IOException( "SHA-256 verification failed: " + name );
+                byte[] decompressed = decompressFile( dis, entry.compressedSize() );
+                byte[] actualHash   = Hashing.sha256( decompressed );
+
+                if ( !Arrays.equals( entry.sha256(), actualHash ) )  {
+                    throw new IOException( "SHA-256 verification failed: " + entry.name() );
                 }
 
-                Path target = output.resolve( name ).normalize();
+                Path target = output.resolve( entry.name() ).normalize();
                 if ( !target.startsWith( output ) )  {
                     throw new IOException( "Path traversal detected: " + name );
                 }

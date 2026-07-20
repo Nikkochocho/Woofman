@@ -1,5 +1,4 @@
 This is a TODO list with improvements and new features;
 
 - Add .bat/.sh to compile and run with easier commands
-- Fix decoder time complexity
-- Optimize algorithm
+- Add LZ77 compression

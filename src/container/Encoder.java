@@ -1,3 +1,5 @@
+package container;
+
 import java.io.*;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -12,15 +14,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 
+import compression.huffman.BTree;
+import util.BitWriter;
+import util.Hashing;
+
 
 public class Encoder  {
 
-    // Magic numbers 
-    private static final byte[] MAGIC_HEADER    = { 'W', 'O', 'O','F', '1' };
-    private static final byte[] MAGIC_FOOTER    = { '1', 'F', 'O', 'O', 'W' };
-    private static final short  VERSION         = 1;
-    private static final int    TOC_OFFSET_POS  = 9; // magic(5) + version(2) + fileCount(2)
-    
     private final Path source;
     private final Path output;
 
@@ -73,10 +73,10 @@ public class Encoder  {
         tree.buildTree();
 
         Map<Byte, String> conversionTable = tree.getConversionTable();
-        StringBuilder     sb              = new StringBuilder();
 
+        long totalBits = 0;
         for ( byte b : data )  {
-            sb.append( conversionTable.get( b ) );
+            totalBits += conversionTable.get( b ).length();
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -89,41 +89,23 @@ public class Encoder  {
             dos.writeInt( entry.getValue() );
         }
 
-        dos.writeInt( sb.length() );
+        dos.writeInt( (int) totalBits );
 
-        int currentByte = 0;
-        int bitCount    = 0;
-
-        for ( int i = 0; i < sb.length(); i++ )  {
-            currentByte = ( currentByte << 1 ) | ( sb.charAt(i) == '1' ? 1 : 0 );
-            if ( ++bitCount == 8 )  {
-                dos.write( currentByte );
-                currentByte = 0;
-                bitCount    = 0;
-            }
+        BitWriter bitWriter = new BitWriter( dos );
+        for ( byte b : data )  {
+            bitWriter.writeBits( conversionTable.get( b ) );
         }
-        if ( bitCount > 0 )  {
-            dos.write( currentByte << ( 8 - bitCount ) );
-        }
+        bitWriter.flush();
 
         dos.flush();
         return baos.toByteArray();
-    }
-
-    private byte[] sha256( byte[] data )  { 
-
-        try  {
-            return MessageDigest.getInstance( "SHA-256" ).digest( data );
-        } catch ( NoSuchAlgorithmException e )  {
-            throw new RuntimeException( e );
-        }
     }
 
     private void patchOffsetsAndCRC( long tocOffset ) throws IOException  {
 
         try ( RandomAccessFile raf = new RandomAccessFile( output.toFile(), "rw" ) )  {
 
-            raf.seek( TOC_OFFSET_POS );
+            raf.seek( ContainerFormat.TOC_OFFSET_POS );
             raf.writeLong( tocOffset );
 
             raf.seek( 0 );
@@ -155,64 +137,63 @@ public class Encoder  {
         List<Path> files     = collectFiles( source );
         long       tocOffset = 0;
 
-        record Pending( String name, byte[] sha256, long originalSize, byte[] compressed ) {}
-        List<Pending> pending = new ArrayList<>();
+        List<FileEntry> pending = new ArrayList<>();
 
         for ( Path file : files )  {
             byte[] originalData = readFile( file.toFile() );
             String relativeName = Files.isRegularFile( source )
                 ? source.getFileName().toString()
                 : source.relativize( file ).toString().replace( '\\', '/' );
-            byte[] sha256       = sha256( originalData );                       // might remove
+            byte[] sha256       = Hashing.sha256( originalData );
             byte[] compressed   = compressFile( originalData );
-            pending.add( new Pending( relativeName, sha256, originalData.length, compressed ) );
+
+            pending.add( new FileEntry( relativeName, sha256, originalData.length, compressed.length, 0L, compressed ) );
 
             float compressionRate = 100 * ( 1 - ( ( float ) compressed.length / originalData.length ) );
             System.out.println( "Compressed: " + relativeName + " | Compression rate: " + compressionRate + "%" );
         }
 
         try ( OutputStream os = new BufferedOutputStream( new FileOutputStream( output.toFile() ) ) )  {
-        	
-        	DataOutputStream dos = new DataOutputStream( os );
-            
-            dos.write( MAGIC_HEADER );                  // 5 bytes: "WOOF1"
-            dos.writeShort( VERSION );                  // 2 bytes (short)
-            dos.writeShort( pending.size() );           // 2 bytes (short)
-            dos.writeLong( 0L );                        // 8 bytes (long)
-            
-            // points to the beginning of the file entries
-            long cursor = TOC_OFFSET_POS + 8; // HEADER + PLACEHOLDER
 
-            List<long[]> tocEntries = new ArrayList<>(); // Offset
-            List<byte[]> tocHashes  = new ArrayList<>(); // SHA-256 hashes
+            DataOutputStream dos = new DataOutputStream( os );
 
-            for ( Pending p : pending )  {
+            dos.write( ContainerFormat.MAGIC_HEADER );
+            dos.writeShort( ContainerFormat.VERSION );
+            dos.writeShort( pending.size() );
+            dos.writeLong( 0L );
+
+            long cursor = ContainerFormat.TOC_OFFSET_POS + 8;
+
+            List<long[]> tocEntries = new ArrayList<>();
+            List<byte[]> tocHashes  = new ArrayList<>();
+
+            for ( FileEntry p : pending )  {
                 byte[] nameBytes = p.name().getBytes( java.nio.charset.StandardCharsets.UTF_8 );
-                dos.writeShort( nameBytes.length );     // 2 bytes: file name size
-                dos.write( nameBytes );                 // N bytes: name UTF-8
-                dos.write( p.sha256() );                // 32 bytes: SHA-256
-                dos.writeLong( p.originalSize() );      // 8 bytes: original file size - might remove
-                dos.writeLong( p.compressed().length ); // 8 bytes: compressed file size
+                dos.writeShort( nameBytes.length );
+                dos.write( nameBytes );
+                dos.write( p.sha256() );
+                dos.writeLong( p.originalSize() );
+                dos.writeLong( p.compressedSize() );
 
-                long metaSize   = 2 + nameBytes.length + 32 + 8 + 8; // FILE NAME + NAME + SHA_256 + OG_SIZE + COMP_SIZE
+                long metaSize   = 2 + nameBytes.length + 32 + 8 + 8;
                 long dataOffset = cursor + metaSize;
 
                 tocHashes.add( p.sha256() );
                 tocEntries.add( new long[]{ dataOffset } );
 
-                dos.write( p.compressed() );               
-                cursor += metaSize + p.compressed().length;
+                dos.write( p.compressedData() );
+                cursor += metaSize + p.compressedData().length;
             }
 
             tocOffset = cursor;
-            
+
             for ( int i = 0; i < tocHashes.size(); i++ )  {
-                dos.write( tocHashes.get(i) );           // 32 bytes: SHA-256
-                dos.writeLong( tocEntries.get(i)[0] );   // 8 bytes: data offset
+                dos.write( tocHashes.get(i) );
+                dos.writeLong( tocEntries.get(i)[0] );
             }
 
-            dos.write( MAGIC_FOOTER );   // 5 bytes: "1FOOW"
-            dos.writeInt( 0 );           // 4 bytes: placeholder CRC32
+            dos.write( ContainerFormat.MAGIC_FOOTER );
+            dos.writeInt( 0 );
             dos.flush();
         }
 

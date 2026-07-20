@@ -1,3 +1,5 @@
+package compression.huffman;
+
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Comparator;
@@ -31,6 +33,11 @@ public class BTree  {
         headerTable      = new HashMap<>();
         conversionTable  = new HashMap<>();
     }
+
+    public BNode getRoot()  {
+    
+        return root;
+    }
     
     public Map<Byte, String> getConversionTable()  {
     	
@@ -48,31 +55,40 @@ public class BTree  {
     }
    
     public void buildTree()  {
-    	
-    	 PriorityQueue<BNode> minHeap = new PriorityQueue<>( headerTable.size(), comparator );
-    	
-    	 for ( byte i : headerTable.keySet() )  {
-         	BNode node = new BNode( i, headerTable.get( i ) );
-    		minHeap.add( node );
-    	 }
-    	
+
+        PriorityQueue<BNode> minHeap = new PriorityQueue<>( Math.max( headerTable.size(), 1 ), comparator );
+
+        for ( byte i : headerTable.keySet() )  {
+            BNode node = new BNode( i, headerTable.get( i ) );
+            minHeap.add( node );
+        }
+
+        if ( minHeap.size() == 1 )  {
+            BNode single  = minHeap.poll();
+            BNode wrapper = new BNode( (byte) 0, single.getFrequency() );
+            wrapper.setLeft( single );
+            root = wrapper;
+            buildConversionTable();
+            return;
+        }
+
         while ( !minHeap.isEmpty() )  {
-        	BNode leftNode  = minHeap.poll();
-        	BNode rightNode = minHeap.poll();
-     
-        	if ( leftNode != null && rightNode != null )  {
-            	int   freq    = leftNode.getFrequency() + rightNode.getFrequency();
-            	BNode newNode = new BNode( ( byte ) freq, freq );
+            BNode leftNode  = minHeap.poll();
+            BNode rightNode = minHeap.poll();
+
+            if ( leftNode != null && rightNode != null )  {
+                int   freq    = leftNode.getFrequency() + rightNode.getFrequency();
+                BNode newNode = new BNode( ( byte ) freq, freq );
 
                 newNode.setLeft( leftNode );
                 newNode.setRight( rightNode );
-	        	minHeap.add( newNode );
-        	}
-        	else  {
-        		root = leftNode;
-        	}
+                minHeap.add( newNode );
+            }
+            else  {
+                root = leftNode;
+            }
         }
-        
+
         buildConversionTable();
     }
 

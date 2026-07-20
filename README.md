@@ -53,7 +53,7 @@ If you do not have Java 11 or any higher version installed, you can install the 
 Before running the project, be sure to compile it using the following command:
 
 ```shell
-javac -d out src/*.java
+javac -d out $(find . -name "*.java")
 ```
 
 - For data **compression**
