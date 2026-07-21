@@ -8,9 +8,9 @@ import java.util.PriorityQueue;
 
 public class BTree  {
 
-    private BNode              root;
-    private Map<Byte, Integer> headerTable;
-    private Map<Byte, String>  conversionTable;
+    private BNode                 root;
+    private Map<Integer, Integer> headerTable;
+    private Map<Integer, String>  conversionTable;
 
     private Comparator<BNode> comparator = new Comparator<BNode>()  {
 
@@ -39,17 +39,17 @@ public class BTree  {
         return root;
     }
     
-    public Map<Byte, String> getConversionTable()  {
+    public Map<Integer, String> getConversionTable()  {
     	
     	return conversionTable;
     }
     
-    public Map<Byte, Integer> getHeaderTable()  {
+    public Map<Integer, Integer> getHeaderTable()  {
     	
     	return headerTable;
     }
 
-    public void setHeaderTable( Map<Byte, Integer> frequencia )  {
+    public void setHeaderTable( Map<Integer, Integer> frequencia )  {
 
         headerTable = frequencia;
     }
@@ -58,14 +58,14 @@ public class BTree  {
 
         PriorityQueue<BNode> minHeap = new PriorityQueue<>( Math.max( headerTable.size(), 1 ), comparator );
 
-        for ( byte i : headerTable.keySet() )  {
+        for ( Integer i : headerTable.keySet() )  {
             BNode node = new BNode( i, headerTable.get( i ) );
             minHeap.add( node );
         }
 
         if ( minHeap.size() == 1 )  {
             BNode single  = minHeap.poll();
-            BNode wrapper = new BNode( (byte) 0, single.getFrequency() );
+            BNode wrapper = new BNode( (Integer) 0, single.getFrequency() );
             wrapper.setLeft( single );
             root = wrapper;
             buildConversionTable();
@@ -78,7 +78,7 @@ public class BTree  {
 
             if ( leftNode != null && rightNode != null )  {
                 int   freq    = leftNode.getFrequency() + rightNode.getFrequency();
-                BNode newNode = new BNode( ( byte ) freq, freq );
+                BNode newNode = new BNode( ( Integer ) freq, freq );
 
                 newNode.setLeft( leftNode );
                 newNode.setRight( rightNode );
@@ -95,7 +95,7 @@ public class BTree  {
     // verification methods
     public void showHeaderTable()  {
 
-        for ( byte i : headerTable.keySet() ) {
+        for ( Integer i : headerTable.keySet() ) {
 
             System.out.println( "key: " + i + " value:" + headerTable.get( i ) );
         }
@@ -103,7 +103,7 @@ public class BTree  {
 
     public void showConversionTable()  {
 
-        for ( byte i : conversionTable.keySet() ) {
+        for ( Integer i : conversionTable.keySet() ) {
 
             System.out.println( "key: " + i + " value:" + conversionTable.get( i ) );
         }

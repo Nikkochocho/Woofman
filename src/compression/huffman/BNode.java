@@ -5,11 +5,11 @@ import java.util.Map;
 
 public class BNode  {
 
-	private byte  character;
+	private int   character;
     private int   frequency;
     private BNode left, right;
 
-    public BNode ( byte character, int frequency )  {
+    public BNode ( int character, int frequency )  {
 
         this.character = character;
         this.frequency = frequency;
@@ -31,7 +31,7 @@ public class BNode  {
         return right;
     }
 
-    public byte getCharacter()  {
+    public int getCharacter()  {
         
         return character;
     }
@@ -51,7 +51,7 @@ public class BNode  {
     	this.right = right;
     }
     
-    public Map<Byte, String> buildConversionTable( String bin, Map<Byte, String> conversionTable )  {
+    public Map<Integer, String> buildConversionTable( String bin, Map<Integer, String> conversionTable )  {
     	
         if ( left == null && right == null )  {
             conversionTable.put( character, bin );

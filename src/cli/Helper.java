@@ -1,5 +1,6 @@
 package cli;
 
+import compression.CompressionType;
 import container.Decoder;
 import container.Encoder;
 import java.io.IOException;
@@ -20,7 +21,7 @@ public class Helper  {
         }
     }
     
-    public static void encodeProcessing( String path )  {
+    public static void encodeProcessing( String path, CompressionType type )  {
 
         Path source = Path.of( path );
         if ( !Files.exists( source ) ) {
@@ -30,8 +31,8 @@ public class Helper  {
 
         Path outputFile = source.resolveSibling( source.getFileName() + ".woof" );
 
-        System.out.println( "Encoding..." );
-        Encoder encoder = new Encoder( source, outputFile );
+        System.out.println( "Encoding with " + type + "..." );
+        Encoder encoder = new Encoder( source, outputFile, type );
         timeMeasure( () -> {
             try  {
                 encoder.encode();
@@ -68,7 +69,8 @@ public class Helper  {
 
     public static void help()  {
         System.out.println( "\n📘 Correct usage:" );
-        System.out.println( "  java -cp out Main encode <source>" );
-        System.out.println( "  java -cp out Main decode <compressed_file>" );
+        System.out.println( "  java -cp out cli.Main encode <source> [--algo=huffman|lz77]" );
+        System.out.println( "  java -cp out cli.Main decode <compressed_file>" );
+        System.out.println( "\nAvailable algorithms: huffman (default), lz77" );
     }
 }

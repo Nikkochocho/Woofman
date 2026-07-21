@@ -1,5 +1,7 @@
 package container;
 
+import compression.CompressionType;
+
 
 public record FileEntry(
     String name,
@@ -7,5 +9,6 @@ public record FileEntry(
     long   originalSize,
     long   compressedSize,
     long   dataOffset,
+    CompressionType type,
     byte[] compressedData   
 ) {}

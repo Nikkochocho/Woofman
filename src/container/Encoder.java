@@ -1,7 +1,9 @@
 package container;
 
 import compression.CompressionAlgorithm;
+import compression.CompressionType;
 import compression.huffman.HuffmanCoder;
+import compression.lz77.LZ77HuffmanCoder;
 import java.io.*;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -16,8 +18,17 @@ import util.Hashing;
 
 public class Encoder  {
 
-    private final Path source;
-    private final Path output;
+    private final Path            source;
+    private final Path            output;
+    private final CompressionType type;
+
+    private CompressionAlgorithm createAlgorithm()  {
+        return switch ( type )  {
+            case HUFFMAN      -> new HuffmanCoder();
+            case LZ77_HUFFMAN -> new LZ77HuffmanCoder();
+            case RLE          -> throw new UnsupportedOperationException( "RLE not implemented yet" );
+        };
+    }
 
     private List<Path> collectFiles( Path source ) throws IOException  {
 
@@ -82,8 +93,14 @@ public class Encoder  {
 
     public Encoder( Path source, Path output )  {
 
+        this( source, output, CompressionType.HUFFMAN ); // default
+    }
+
+    public Encoder( Path source, Path output, CompressionType type )  {
+
         this.source = source;
         this.output = output;
+        this.type   = type;
     }
 
     public void encode() throws IOException {
@@ -100,10 +117,10 @@ public class Encoder  {
                 : source.relativize( file ).toString().replace( '\\', '/' );
             byte[] sha256       = Hashing.sha256( originalData );
 
-            CompressionAlgorithm algorithm  = new HuffmanCoder();
-            byte[]               compressed = algorithm.compress( originalData );
+            CompressionAlgorithm algorithm = createAlgorithm();
+            byte[] compressed = algorithm.compress( originalData );
 
-            pending.add( new FileEntry( relativeName, sha256, originalData.length, compressed.length, 0L, compressed ) );
+            pending.add( new FileEntry( relativeName, sha256, originalData.length, compressed.length, 0L, type, compressed ) );
 
             float compressionRate = 100 * ( 1 - ( ( float ) compressed.length / originalData.length ) );
             System.out.println( "Compressed: " + relativeName + " | Compression rate: " + compressionRate + "%" );
@@ -130,8 +147,9 @@ public class Encoder  {
                 dos.write( p.sha256() );
                 dos.writeLong( p.originalSize() );
                 dos.writeLong( p.compressedSize() );
+                dos.writeByte( p.type().getCode() );
 
-                long metaSize   = 2 + nameBytes.length + 32 + 8 + 8;
+                long metaSize   = 2 + nameBytes.length + 32 + 8 + 8 + 1;
                 long dataOffset = cursor + metaSize;
 
                 tocHashes.add( p.sha256() );

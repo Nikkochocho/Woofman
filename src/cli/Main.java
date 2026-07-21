@@ -1,34 +1,50 @@
 package cli;
 
+import compression.CompressionType;
+
 public class Main  {
+
+    private static CompressionType parseAlgorithm( String name )  {
+        
+        return switch ( name.toLowerCase() )  {
+            case "huffman" -> CompressionType.HUFFMAN;
+            case "lz77"    -> CompressionType.LZ77_HUFFMAN;
+            case "rle"     -> CompressionType.RLE;
+            default ->  {
+                System.out.println( "Unknown algorithm: " + name + ", using huffman as default." );
+                yield CompressionType.HUFFMAN;
+            }
+        };
+    }
 
     public static void main( String[] args )  {
 
         if ( args.length < 2 )  {
-            
             Helper.help();
             return;
         }
 
-        String command = args[0].toLowerCase();
+        String command = args[0];
+        String path    = args[1];
 
-        try  {
+        switch ( command )  {
 
-            switch ( command )  {
-                case "encode":
-                    Helper.encodeProcessing( args[1] );
-                    break;
+            case "encode" ->  {
+                CompressionType type = CompressionType.HUFFMAN; // default
 
-                case "decode":
-                    Helper.decodeProcessing( args[1] );
-                    break;
+                for ( int i = 2; i < args.length; i++ )  {
+                    if ( args[i].startsWith( "--algo=" ) )  {
+                        String algoName = args[i].substring( "--algo=".length() );
+                        type = parseAlgorithm( algoName );
+                    }
+                }
 
-                default:
-                    System.out.println( "Invalid command: " + command );
-                    Helper.help();
+                Helper.encodeProcessing( path, type );
             }
-        } catch ( Exception e )  {
-            System.out.println( "Error during execution: " + e.getMessage() );
+
+            case "decode" -> Helper.decodeProcessing( path );
+
+            default -> Helper.help();
         }
     }
 }

@@ -1,13 +1,12 @@
 package compression.huffman;
 
+import compression.CompressionAlgorithm;
 import java.io.*;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import compression.CompressionAlgorithm;
-import util.BitWriter;
 import util.BitReader;
+import util.BitWriter;
 
 
 public class HuffmanCoder implements CompressionAlgorithm  {
@@ -15,36 +14,39 @@ public class HuffmanCoder implements CompressionAlgorithm  {
     @Override
     public byte[] compress( byte[] data ) throws IOException  {
 
-        Map<Byte, Integer> headerTable = new HashMap<>();
-        BTree              tree        = new BTree();
+        Map<Integer, Integer> headerTable = new HashMap<>();
+        BTree                 tree        = new BTree();
 
         for ( byte b : data )  {
-            headerTable.merge( b, 1, Integer :: sum );
+            int symbol = b & 0xFF;                          
+            headerTable.merge( symbol, 1, Integer :: sum );
         }
 
         tree.setHeaderTable( headerTable );
         tree.buildTree();
 
-        Map<Byte, String> conversionTable = tree.getConversionTable();
+        Map<Integer, String> conversionTable = tree.getConversionTable();
 
         long totalBits = 0;
         for ( byte b : data )  {
-            totalBits += conversionTable.get( b ).length();
+            totalBits += conversionTable.get( b & 0xFF ).length();  
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream      dos  = new DataOutputStream( baos );
 
         dos.writeShort( headerTable.size() );
-        for ( Map.Entry<Byte, Integer> entry : headerTable.entrySet() )  {
-            dos.writeByte( entry.getKey() );
+
+        for ( Map.Entry<Integer, Integer> entry : headerTable.entrySet() )  {
+            dos.writeShort( entry.getKey() );                        
             dos.writeInt( entry.getValue() );
         }
+
         dos.writeInt( (int) totalBits );
 
         BitWriter bitWriter = new BitWriter( dos );
         for ( byte b : data )  {
-            bitWriter.writeBits( conversionTable.get( b ) );
+            bitWriter.writeBits( conversionTable.get( b & 0xFF ) ); 
         }
         bitWriter.flush();
 
@@ -57,11 +59,13 @@ public class HuffmanCoder implements CompressionAlgorithm  {
 
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream( compressedData ) );
 
-        Map<Byte, Integer> headerTable = new LinkedHashMap<>();
+        Map<Integer, Integer> headerTable = new LinkedHashMap<>();
         short tableSize = dis.readShort();
 
         for ( int i = 0; i < tableSize; i++ )  {
-            headerTable.put( dis.readByte(), dis.readInt() );
+            int key   = dis.readShort();      
+            int value = dis.readInt();
+            headerTable.put( key, value );
         }
 
         BTree tree = new BTree();
@@ -71,7 +75,6 @@ public class HuffmanCoder implements CompressionAlgorithm  {
 
         int totalBits = dis.readInt();
 
-        long bytesRemaining = compressedData.length - ( compressedData.length - dis.available() );
         BitReader bitReader = new BitReader( dis, dis.available() );
 
         ByteArrayOutputStream baos    = new ByteArrayOutputStream();
@@ -83,7 +86,7 @@ public class HuffmanCoder implements CompressionAlgorithm  {
             int bit = bitReader.readBit();
 
             if ( singleSymbol )  {
-                baos.write( root.getLeft().getCharacter() );
+                baos.write( root.getLeft().getCharacter() );   // getCharacter() agora devolve int, write() aceita int normalmente
                 continue;
             }
 

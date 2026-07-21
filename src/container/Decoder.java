@@ -1,7 +1,9 @@
 package container;
 
 import compression.CompressionAlgorithm;
+import compression.CompressionType;
 import compression.huffman.HuffmanCoder;
+import compression.lz77.LZ77HuffmanCoder;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -86,22 +88,26 @@ public class Decoder  {
                 dis.readFully( storedHash );
                 long   originalSize    = dis.readLong();
                 long   compressedSize  = dis.readLong();
-
-                FileEntry entry = new FileEntry( name, storedHash, originalSize, compressedSize, 0L, null );
+                byte   compressionCode = dis.readByte();          
+                CompressionType type   = CompressionType.fromCode( compressionCode );
 
                 byte[] compressedBytes = new byte[ (int) compressedSize ];
                 dis.readFully( compressedBytes );
 
-                CompressionAlgorithm algorithm    = new HuffmanCoder();
-                byte[]               decompressed = algorithm.decompress( compressedBytes );
+                CompressionAlgorithm algorithm = switch ( type )  {
+                    case HUFFMAN      -> new HuffmanCoder();
+                    case LZ77_HUFFMAN -> new LZ77HuffmanCoder();
+                    case RLE          -> throw new UnsupportedOperationException( "RLE not implemented yet" );
+                };
 
-                byte[] actualHash   = Hashing.sha256( decompressed );
+                byte[] decompressed  = algorithm.decompress( compressedBytes );
+                byte[] actualHash    = Hashing.sha256( decompressed );
 
-                if ( !Arrays.equals( entry.sha256(), actualHash ) )  {
-                    throw new IOException( "SHA-256 verification failed: " + entry.name() );
+                if ( !Arrays.equals( storedHash, actualHash ) )  {
+                    throw new IOException( "SHA-256 verification failed: " + name );
                 }
 
-                Path target = output.resolve( entry.name() ).normalize();
+                Path target = output.resolve(name).normalize();
                 if ( !target.startsWith( output ) )  {
                     throw new IOException( "Path traversal detected: " + name );
                 }
