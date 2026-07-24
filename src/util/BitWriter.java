@@ -8,7 +8,7 @@ public class BitWriter  {
 
     private final OutputStream out;
     private       int          currentByte;
-private           int          bitCount;
+    private       int          bitCount;
 
     public BitWriter( OutputStream out )  {
 
@@ -36,7 +36,7 @@ private           int          bitCount;
         }
     }
 
-    public void writeBits( int value, int numBits ) throws IOException  { //used for LZ77
+    public void writeBits( int value, int numBits ) throws IOException  { // used for LZ77
 
         for ( int i = numBits - 1; i >= 0; i-- )  {
             writeBit( ( value >> i ) & 1 );

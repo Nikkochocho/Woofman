@@ -4,6 +4,8 @@ import compression.CompressionAlgorithm;
 import compression.CompressionType;
 import compression.huffman.HuffmanCoder;
 import compression.lz77.LZ77HuffmanCoder;
+import compression.lz77.LZ77OnlyCoder;
+import compression.rle.RLECoder;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -97,7 +99,8 @@ public class Decoder  {
                 CompressionAlgorithm algorithm = switch ( type )  {
                     case HUFFMAN      -> new HuffmanCoder();
                     case LZ77_HUFFMAN -> new LZ77HuffmanCoder();
-                    case RLE          -> throw new UnsupportedOperationException( "RLE not implemented yet" );
+                    case RLE          -> new RLECoder();
+                    case LZ77_ONLY    -> new LZ77OnlyCoder();
                 };
 
                 byte[] decompressed  = algorithm.decompress( compressedBytes );

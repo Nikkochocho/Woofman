@@ -86,7 +86,7 @@ public class HuffmanCoder implements CompressionAlgorithm  {
             int bit = bitReader.readBit();
 
             if ( singleSymbol )  {
-                baos.write( root.getLeft().getCharacter() );   // getCharacter() agora devolve int, write() aceita int normalmente
+                baos.write( root.getLeft().getCharacter() );   
                 continue;
             }
 

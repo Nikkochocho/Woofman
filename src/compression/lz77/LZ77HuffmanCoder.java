@@ -1,13 +1,12 @@
 package compression.lz77;
 
+import compression.CompressionAlgorithm;
+import compression.huffman.BNode;
+import compression.huffman.BTree;
 import java.io.*;
 import java.util.*;
-
-import compression.CompressionAlgorithm;
-import compression.huffman.BTree;
-import compression.huffman.BNode;
-import util.BitWriter;
 import util.BitReader;
+import util.BitWriter;
 
 
 public class LZ77HuffmanCoder implements CompressionAlgorithm  {

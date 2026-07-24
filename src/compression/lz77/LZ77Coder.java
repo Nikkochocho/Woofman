@@ -1,5 +1,6 @@
 package compression.lz77;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -9,26 +10,31 @@ import java.util.Map;
 
 public class LZ77Coder {
 
-    private static final int WINDOW_SIZE = 32760;
-    private static final int MIN_MATCH   = 3;         
-    private static final int MAX_MATCH   = 258;
-    private static final int HASH_BYTES  = 3;
+    private static final int WINDOW_SIZE      = 32760;
+    private static final int MIN_MATCH        = 3;         
+    private static final int MAX_MATCH        = 258;
+    private static final int HASH_BYTES       = 3;
+    private static final int MAX_CHAIN_LENGTH = 64;
+    private static final int HASH_BITS        = 15;                   
+    private static final int HASH_SIZE        = 1 << HASH_BITS;
     
-    private int hash3( byte[] data, int pos )  {
+    private final Map<Integer, ArrayDeque<Integer>> positions = new HashMap<>();
 
-        return ( ( data[pos] & 0xFF ) << 16 )
-             | ( ( data[pos + 1] & 0xFF ) << 8 )
-             | ( data[pos + 2] & 0xFF );
+    private int hashIndex( byte[] data, int pos )  {
+
+        int h = ( ( data[pos] & 0xFF ) << 16 )
+            | ( ( data[pos+1] & 0xFF ) << 8 )
+            |   ( data[pos+2] & 0xFF );
+
+        return ( h * 0x9E3779B1 ) >>> ( 32 - HASH_BITS );
     }
 
-    private void registerPosition( Map<Integer, List<Integer>> positions, byte[] data, int pos )  {
+    private void registerPosition( int[] head, int[] prev, byte[] data, int pos )  {
 
-        if ( pos + HASH_BYTES > data.length )  {
-            return;
-        }
+        int idx = hashIndex( data, pos );
 
-        int hash = hash3( data, pos );
-        positions.computeIfAbsent( hash, k -> new ArrayList<>() ).add( pos );
+        prev[ pos ] = head[ idx ]; 
+        head[ idx ] = pos;        
     }
 
     private int matchLength( byte[] data, int candidatePos, int currentPos )  {
@@ -59,8 +65,11 @@ public class LZ77Coder {
 
     public List<LZ77Token> tokenize( byte[] data )  {
 
-        List<LZ77Token>             tokens    = new ArrayList<>();
-        Map<Integer, List<Integer>> positions = new HashMap<>();
+        List<LZ77Token> tokens = new ArrayList<>();
+
+        int[] head = new int[ HASH_SIZE ];
+        int[] prev = new int[ data.length ];
+        Arrays.fill( head, -1 ); 
 
         int i = 0;
 
@@ -71,25 +80,29 @@ public class LZ77Coder {
 
             if ( i + HASH_BYTES <= data.length )  {
 
-                int hash = hash3( data, i );
-                List<Integer> candidates = positions.get( hash );
+                int  idx           = hashIndex( data, i );
+                int  candidatePos  = head[ idx ];
+                int  checked       = 0;
 
-                if ( candidates != null )  {
-                    for ( int j = candidates.size() - 1; j >= 0; j-- )  {
+                while ( candidatePos != -1 && checked < MAX_CHAIN_LENGTH )  {
 
-                        int candidatePos = candidates.get( j );
-
-                        if ( i - candidatePos > WINDOW_SIZE )  {
-                            break; 
-                        }
-
-                        int length = matchLength( data, candidatePos, i );
-
-                        if ( length > bestLength )  {
-                            bestLength   = length;
-                            bestDistance = i - candidatePos;
-                        }
+                    if ( i - candidatePos > WINDOW_SIZE )  {
+                        break;
                     }
+
+                    int length = matchLength( data, candidatePos, i );
+
+                    if ( length > bestLength )  {
+                        bestLength   = length;
+                        bestDistance = i - candidatePos;
+                    }
+
+                    if ( bestLength >= MAX_MATCH )  {
+                        break;
+                    }
+
+                    candidatePos = prev[ candidatePos ];
+                    checked++;
                 }
             }
 
@@ -97,8 +110,8 @@ public class LZ77Coder {
 
                 tokens.add( new Match( bestDistance, bestLength ) );
 
-                for ( int k = 0; k < bestLength && i + HASH_BYTES <= data.length; k++ )  {
-                    registerPosition( positions, data, i + k );
+                for ( int k = 0; k < bestLength && i + k + HASH_BYTES <= data.length; k++ )  {
+                    registerPosition( head, prev, data, i + k );
                 }
 
                 i += bestLength;
@@ -106,7 +119,11 @@ public class LZ77Coder {
             else  {
 
                 tokens.add( new Literal( data[i] ) );
-                registerPosition( positions, data, i );
+
+                if ( i + HASH_BYTES <= data.length )  {
+                    registerPosition( head, prev, data, i );
+                }
+
                 i += 1;
             }
         }
@@ -116,8 +133,8 @@ public class LZ77Coder {
 
     public byte[] detokenize( List<LZ77Token> tokens )  {
 
-        byte[] buffer = new byte[ 4096 ]; // capacidade inicial, cresce sob demanda
-        int    length = 0;                // quantos bytes já foram escritos de verdade
+        byte[] buffer = new byte[ 4096 ]; 
+        int    length = 0;                
 
         for ( LZ77Token token : tokens )  {
 

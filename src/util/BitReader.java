@@ -7,15 +7,16 @@ import java.io.IOException;
 public class BitReader  {
 
     private final DataInputStream in;
-    private int                   currentByte;
-    private int                   bitMask;
-    private long                  bytesRemaining;
+
+    private int  currentByte;
+    private int  bitMask;
+    private long bytesRemaining;
 
     public BitReader( DataInputStream in, long bytesRemaining )  {
 
         this.in             = in;
         this.bytesRemaining = bytesRemaining;
-        this.bitMask        = 0; // força leitura de um novo byte na primeira chamada
+        this.bitMask        = 0; 
     }
 
     public int readBit() throws IOException  {
@@ -35,7 +36,7 @@ public class BitReader  {
         return bit;
     }
 
-    public int readBits( int numBits ) throws IOException  { //used for LZ77
+    public int readBits( int numBits ) throws IOException  { // used for LZ77
 
         int value = 0;
 

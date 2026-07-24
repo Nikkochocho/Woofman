@@ -1,5 +1,6 @@
 package container;
 
+
 public final class ContainerFormat  {
 
     public static final byte[] MAGIC_HEADER    = { 'W', 'O', 'O', 'F', '1' };

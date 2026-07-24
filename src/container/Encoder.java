@@ -4,6 +4,8 @@ import compression.CompressionAlgorithm;
 import compression.CompressionType;
 import compression.huffman.HuffmanCoder;
 import compression.lz77.LZ77HuffmanCoder;
+import compression.lz77.LZ77OnlyCoder;
+import compression.rle.RLECoder;
 import java.io.*;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -12,23 +14,15 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.CRC32;
 import util.Hashing;
 
 
 public class Encoder  {
 
-    private final Path            source;
-    private final Path            output;
-    private final CompressionType type;
-
-    private CompressionAlgorithm createAlgorithm()  {
-        return switch ( type )  {
-            case HUFFMAN      -> new HuffmanCoder();
-            case LZ77_HUFFMAN -> new LZ77HuffmanCoder();
-            case RLE          -> throw new UnsupportedOperationException( "RLE not implemented yet" );
-        };
-    }
+    private final Path source;
+    private final Path output;
 
     private List<Path> collectFiles( Path source ) throws IOException  {
 
@@ -93,17 +87,11 @@ public class Encoder  {
 
     public Encoder( Path source, Path output )  {
 
-        this( source, output, CompressionType.HUFFMAN ); // default
-    }
-
-    public Encoder( Path source, Path output, CompressionType type )  {
-
         this.source = source;
         this.output = output;
-        this.type   = type;
     }
 
-    public void encode() throws IOException {
+    public void encode( Map<Path, CompressionType> choices ) throws IOException {
 
         List<Path> files     = collectFiles( source );
         long       tocOffset = 0;
@@ -111,19 +99,23 @@ public class Encoder  {
         List<FileEntry> pending = new ArrayList<>();
 
         for ( Path file : files )  {
+
             byte[] originalData = readFile( file.toFile() );
             String relativeName = Files.isRegularFile( source )
                 ? source.getFileName().toString()
                 : source.relativize( file ).toString().replace( '\\', '/' );
-            byte[] sha256       = Hashing.sha256( originalData );
 
-            CompressionAlgorithm algorithm = createAlgorithm();
-            byte[] compressed = algorithm.compress( originalData );
+            CompressionType type = choices.getOrDefault( file, CompressionType.HUFFMAN );
+
+            CompressionAlgorithm algorithm = createAlgorithm( type );
+            byte[]                compressed = algorithm.compress( originalData );
+
+            byte[] sha256 = Hashing.sha256( originalData );
 
             pending.add( new FileEntry( relativeName, sha256, originalData.length, compressed.length, 0L, type, compressed ) );
 
-            float compressionRate = 100 * ( 1 - ( ( float ) compressed.length / originalData.length ) );
-            System.out.println( "Compressed: " + relativeName + " | Compression rate: " + compressionRate + "%" );
+            float compressionRate = 100 * ( 1 - ( (float) compressed.length / originalData.length ) );
+            System.out.println( "Compressed: " + relativeName + " | Algorithm: " + type + " | Compression rate: " + compressionRate + "%" );
         }
 
         try ( OutputStream os = new BufferedOutputStream( new FileOutputStream( output.toFile() ) ) )  {
@@ -141,7 +133,9 @@ public class Encoder  {
             List<byte[]> tocHashes  = new ArrayList<>();
 
             for ( FileEntry p : pending )  {
+
                 byte[] nameBytes = p.name().getBytes( java.nio.charset.StandardCharsets.UTF_8 );
+
                 dos.writeShort( nameBytes.length );
                 dos.write( nameBytes );
                 dos.write( p.sha256() );
@@ -173,6 +167,16 @@ public class Encoder  {
 
         patchOffsetsAndCRC( tocOffset );
         System.out.println( "File was created: " + output );
-        
+    }
+
+    private CompressionAlgorithm createAlgorithm( CompressionType type )  {
+        return switch ( type )  {
+            case HUFFMAN       -> new HuffmanCoder();
+            case LZ77_HUFFMAN  -> new LZ77HuffmanCoder();
+            case RLE           -> new RLECoder();
+            case LZ77_ONLY     -> new LZ77OnlyCoder();
+            // case DELTA_HUFFMAN -> throw new UnsupportedOperationException( "Delta not implemented yet" );
+            // case PAETH_HUFFMAN -> throw new UnsupportedOperationException( "Paeth not implemented yet" );
+        };
     }
 }

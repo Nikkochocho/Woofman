@@ -13,6 +13,7 @@ public class BNode  {
 
         this.character = character;
         this.frequency = frequency;
+        
         left = right = null;
     }
     
