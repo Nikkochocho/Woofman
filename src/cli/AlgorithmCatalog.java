@@ -1,7 +1,7 @@
 package cli;
 
-import java.util.List;
 import compression.CompressionType;
+import java.util.List;
 
 
 public final class AlgorithmCatalog  {
@@ -23,7 +23,7 @@ public final class AlgorithmCatalog  {
 
         return switch ( kind )  {
             case WAV     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.DELTA_HUFFMAN );
-            case BMP     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY );
+            case BMP     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.PAETH_HUFFMAN );
             case TEXT    -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN );
             case UNKNOWN -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.RLE );
         };

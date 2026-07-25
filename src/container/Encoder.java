@@ -2,6 +2,7 @@ package container;
 
 import compression.CompressionAlgorithm;
 import compression.CompressionType;
+import compression.filters.bmp.BmpPaethHuffmanCoder;
 import compression.filters.wav.WavDeltaHuffmanCoder;
 import compression.huffman.HuffmanCoder;
 import compression.lz77.LZ77HuffmanCoder;
@@ -177,7 +178,6 @@ public class Encoder  {
             case RLE           -> new RLECoder();
             case LZ77_ONLY     -> new LZ77OnlyCoder();
             case DELTA_HUFFMAN -> new WavDeltaHuffmanCoder();
-            case PAETH_HUFFMAN -> throw new UnsupportedOperationException( "Paeth not implemented yet" );
-        };
+            case PAETH_HUFFMAN -> new BmpPaethHuffmanCoder();        };
     }
 }
