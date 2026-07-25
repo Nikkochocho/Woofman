@@ -2,6 +2,7 @@ package container;
 
 import compression.CompressionAlgorithm;
 import compression.CompressionType;
+import compression.filters.wav.WavDeltaHuffmanCoder;
 import compression.huffman.HuffmanCoder;
 import compression.lz77.LZ77HuffmanCoder;
 import compression.lz77.LZ77OnlyCoder;
@@ -67,7 +68,7 @@ public class Decoder  {
         this.output = output;
     }
 
-    public void decode() throws IOException  {
+    public void decode() throws IOException, Exception  {
 
         byte[] data = readFile( input.toFile() );
 
@@ -97,10 +98,12 @@ public class Decoder  {
                 dis.readFully( compressedBytes );
 
                 CompressionAlgorithm algorithm = switch ( type )  {
-                    case HUFFMAN      -> new HuffmanCoder();
-                    case LZ77_HUFFMAN -> new LZ77HuffmanCoder();
-                    case RLE          -> new RLECoder();
-                    case LZ77_ONLY    -> new LZ77OnlyCoder();
+                    case HUFFMAN       -> new HuffmanCoder();
+                    case LZ77_HUFFMAN  -> new LZ77HuffmanCoder();
+                    case RLE           -> new RLECoder();
+                    case LZ77_ONLY     -> new LZ77OnlyCoder();
+                    case DELTA_HUFFMAN -> new WavDeltaHuffmanCoder();
+                    case PAETH_HUFFMAN -> throw new UnsupportedOperationException( "Paeth not implemented yet" );
                 };
 
                 byte[] decompressed  = algorithm.decompress( compressedBytes );

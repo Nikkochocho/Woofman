@@ -6,7 +6,7 @@ public class Main  {
     public static void main( String[] args )  {
 
         if ( args.length < 2 )  {
-            Helper.help();
+            CliCommands.help();
             return;
         }
 
@@ -14,9 +14,9 @@ public class Main  {
         String path    = args[1];
 
         switch ( command )  {
-            case "encode" -> Helper.encodeProcessing( path );
-            case "decode" -> Helper.decodeProcessing( path );
-            default        -> Helper.help();
+            case "encode" -> CliCommands.encodeProcessing( path );
+            case "decode" -> CliCommands.decodeProcessing( path );
+            default       -> CliCommands.help();
         }
     }
 }
