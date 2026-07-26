@@ -7,7 +7,9 @@ public enum CompressionType  {
     RLE( (byte) 2 ),
     LZ77_ONLY( (byte) 3 ),
     DELTA_HUFFMAN( (byte) 4 ),
-    PAETH_HUFFMAN( (byte) 5 );
+    PAETH_HUFFMAN( (byte) 5 ),
+    LZW( (byte) 6 ),
+    LZW_HUFFMAN( (byte) 7 );
 
     private final byte code;
 

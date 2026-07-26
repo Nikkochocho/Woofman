@@ -15,6 +15,8 @@ public final class AlgorithmCatalog  {
             case LZ77_ONLY     -> input.equals( "lz77" );
             case DELTA_HUFFMAN -> input.equals( "delta" );
             case PAETH_HUFFMAN -> input.equals( "paeth" );
+            case LZW           -> input.equals( "lzw" );
+            case LZW_HUFFMAN   -> input.equals( "lzw+huffman" );
             default            -> false;
         };
     }
@@ -22,10 +24,10 @@ public final class AlgorithmCatalog  {
     public static List<CompressionType> suggestOptions( FileKind kind )  {
 
         return switch ( kind )  {
-            case WAV     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.DELTA_HUFFMAN );
-            case BMP     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.PAETH_HUFFMAN );
-            case TEXT    -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN );
-            case UNKNOWN -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.RLE );
+            case WAV     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.DELTA_HUFFMAN );
+            case BMP     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.PAETH_HUFFMAN );
+            case TEXT    -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN );
+            case UNKNOWN -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN, CompressionType.RLE );
         };
     }
 
@@ -38,6 +40,8 @@ public final class AlgorithmCatalog  {
             case LZ77_ONLY     -> "LZ77";
             case DELTA_HUFFMAN -> "Delta";
             case PAETH_HUFFMAN -> "Paeth";
+            case LZW           -> "LZW";
+            case LZW_HUFFMAN   -> "LZW + Huffman";
         };
     }
 

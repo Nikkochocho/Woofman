@@ -7,6 +7,8 @@ import compression.filters.wav.WavDeltaHuffmanCoder;
 import compression.huffman.HuffmanCoder;
 import compression.lz77.LZ77HuffmanCoder;
 import compression.lz77.LZ77OnlyCoder;
+import compression.lzw.LZWCoder;
+import compression.lzw.LZWHuffmanCoder;
 import compression.rle.RLECoder;
 import java.io.*;
 import java.nio.file.FileVisitResult;
@@ -60,6 +62,20 @@ public class Encoder  {
         }
 
         return baos.toByteArray();
+    }
+
+    private CompressionAlgorithm createAlgorithm( CompressionType type )  {
+
+        return switch ( type )  {
+            case HUFFMAN       -> new HuffmanCoder();
+            case LZ77_HUFFMAN  -> new LZ77HuffmanCoder();
+            case RLE           -> new RLECoder();
+            case LZ77_ONLY     -> new LZ77OnlyCoder();
+            case DELTA_HUFFMAN -> new WavDeltaHuffmanCoder();
+            case PAETH_HUFFMAN -> new BmpPaethHuffmanCoder(); 
+            case LZW           -> new LZWCoder();  
+            case LZW_HUFFMAN   -> new LZWHuffmanCoder();     
+        };
     }
 
     private void patchOffsetsAndCRC( long tocOffset ) throws IOException  {
@@ -169,15 +185,5 @@ public class Encoder  {
 
         patchOffsetsAndCRC( tocOffset );
         System.out.println( "File was created: " + output );
-    }
-
-    private CompressionAlgorithm createAlgorithm( CompressionType type )  {
-        return switch ( type )  {
-            case HUFFMAN       -> new HuffmanCoder();
-            case LZ77_HUFFMAN  -> new LZ77HuffmanCoder();
-            case RLE           -> new RLECoder();
-            case LZ77_ONLY     -> new LZ77OnlyCoder();
-            case DELTA_HUFFMAN -> new WavDeltaHuffmanCoder();
-            case PAETH_HUFFMAN -> new BmpPaethHuffmanCoder();        };
     }
 }

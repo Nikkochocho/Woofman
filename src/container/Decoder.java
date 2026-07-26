@@ -7,6 +7,8 @@ import compression.filters.wav.WavDeltaHuffmanCoder;
 import compression.huffman.HuffmanCoder;
 import compression.lz77.LZ77HuffmanCoder;
 import compression.lz77.LZ77OnlyCoder;
+import compression.lzw.LZWCoder;
+import compression.lzw.LZWHuffmanCoder;
 import compression.rle.RLECoder;
 import java.io.*;
 import java.nio.file.Files;
@@ -105,6 +107,8 @@ public class Decoder  {
                     case LZ77_ONLY     -> new LZ77OnlyCoder();
                     case DELTA_HUFFMAN -> new WavDeltaHuffmanCoder();
                     case PAETH_HUFFMAN -> new BmpPaethHuffmanCoder();
+                    case LZW           -> new LZWCoder();
+                    case LZW_HUFFMAN   -> new LZWHuffmanCoder();
                 };
 
                 byte[] decompressed  = algorithm.decompress( compressedBytes );

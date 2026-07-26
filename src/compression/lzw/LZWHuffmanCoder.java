@@ -1,0 +1,154 @@
+package compression.lzw;
+
+import java.io.*;
+import java.util.*;
+
+import compression.CompressionAlgorithm;
+import compression.huffman.BNode;
+import compression.huffman.BTree;
+import compression.huffman.CanonicalHuffman;
+import util.BitReader;
+import util.BitWriter;
+
+
+public class LZWHuffmanCoder implements CompressionAlgorithm  {
+
+    private final LZWTokenizer tokenizer = new LZWTokenizer();
+
+    private void writeVarInt( DataOutputStream dos, int value ) throws IOException  {
+
+        while ( ( value & ~0x7F ) != 0 )  {
+            dos.writeByte( ( value & 0x7F ) | 0x80 );
+            value >>>= 7;
+        }
+        dos.writeByte( value & 0x7F );
+    }
+
+    private int readVarInt( DataInputStream dis ) throws IOException  {
+
+        int value = 0;
+        int shift = 0;
+        int b;
+
+        do  {
+            b = dis.readUnsignedByte();
+            value |= ( b & 0x7F ) << shift;
+            shift += 7;
+        } while ( ( b & 0x80 ) != 0 );
+
+        return value;
+    }
+
+    private void writeLengthTable( DataOutputStream dos, Map<Integer, Integer> lengths ) throws IOException  {
+
+        List<Integer> symbols = new ArrayList<>( lengths.keySet() );
+        Collections.sort( symbols );                    
+
+        writeVarInt( dos, symbols.size() );
+
+        int previous = 0;
+        for ( int symbol : symbols )  {
+            writeVarInt( dos, symbol - previous );        
+            dos.writeByte( lengths.get( symbol ) );
+            previous = symbol;
+        }
+    }
+
+    private Map<Integer, Integer> readLengthTable( DataInputStream dis ) throws IOException  {
+
+        Map<Integer, Integer> lengths = new LinkedHashMap<>();
+        int size = readVarInt( dis );
+
+        int previous = 0;
+        for ( int i = 0; i < size; i++ )  {
+            int delta  = readVarInt( dis );
+            int symbol = previous + delta;
+            int length = dis.readUnsignedByte();
+
+            lengths.put( symbol, length );
+            previous = symbol;
+        }
+
+        return lengths;
+    }
+
+    @Override
+    public byte[] compress( byte[] data ) throws IOException  {
+
+        List<Integer> codes = tokenizer.encode( data );
+
+        Map<Integer, Integer> codeFreq = new HashMap<>();
+        for ( int code : codes )  {
+            codeFreq.merge( code, 1, Integer::sum );
+        }
+
+        BTree tree = new BTree();
+        tree.setHeaderTable( codeFreq );
+        tree.buildTree();
+        BNode root = tree.getRoot();
+
+        boolean single = root != null && root.getLeft() != null && root.getRight() == null;
+
+        Map<Integer, Integer> lengths;
+        Map<Integer, String>  canonicalCodes;
+
+        if ( single )  {
+            lengths        = new LinkedHashMap<>();
+            lengths.put( root.getLeft().getCharacter(), 0 );  
+            canonicalCodes = Map.of();
+        }
+        else  {
+            lengths        = CanonicalHuffman.computeLengths( root );
+            canonicalCodes = CanonicalHuffman.buildCanonicalCodes( lengths );
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream      dos  = new DataOutputStream( baos );
+
+        writeLengthTable( dos, lengths );
+        dos.writeInt( codes.size() );
+
+        BitWriter bitWriter = new BitWriter( dos );
+        if ( !single )  {
+            for ( int code : codes )  {
+                bitWriter.writeBits( canonicalCodes.get( code ) );
+            }
+        }
+        bitWriter.flush();
+        dos.flush();
+
+        return baos.toByteArray();
+    }
+
+    @Override
+    public byte[] decompress( byte[] compressedData ) throws IOException  {
+
+        DataInputStream dis = new DataInputStream( new ByteArrayInputStream( compressedData ) );
+
+        Map<Integer, Integer> lengths = readLengthTable( dis );
+        boolean                single  = lengths.size() == 1;
+
+        int totalTokens = dis.readInt();
+
+        BitReader bitReader = new BitReader( dis, dis.available() );
+
+        List<Integer> codes = new ArrayList<>( totalTokens );
+
+        if ( single )  {
+            int symbol = lengths.keySet().iterator().next();
+            for ( int t = 0; t < totalTokens; t++ )  {
+                codes.add( symbol );
+            }
+        }
+        else  {
+            Map<Integer, String> canonicalCodes = CanonicalHuffman.buildCanonicalCodes( lengths );
+            Map<String, Integer> codeToSymbol   = CanonicalHuffman.invert( canonicalCodes );
+
+            for ( int t = 0; t < totalTokens; t++ )  {
+                codes.add( CanonicalHuffman.decodeSymbol( bitReader, codeToSymbol ) );
+            }
+        }
+
+        return tokenizer.decode( codes );
+    }
+}
