@@ -3,10 +3,12 @@ package compression.lz77;
 import compression.CompressionAlgorithm;
 import compression.huffman.BNode;
 import compression.huffman.BTree;
+import compression.huffman.CanonicalHuffman;
 import java.io.*;
 import java.util.*;
 import util.BitReader;
 import util.BitWriter;
+import util.VarInt;
 
 
 public class LZ77HuffmanCoder implements CompressionAlgorithm  {
@@ -24,43 +26,37 @@ public class LZ77HuffmanCoder implements CompressionAlgorithm  {
         return ( symbol - LENGTH_SYMBOL_BASE ) + MIN_MATCH;
     }
 
-    private int decodeSymbol( BitReader bitReader, BNode root, boolean single ) throws IOException  {
+    private void writeLengthTable( DataOutputStream dos, Map<Integer, Integer> lengths ) throws IOException  {
 
-        if ( single )  {
-            return root.getLeft().getCharacter();
-        }
+        List<Integer> symbols = new ArrayList<>( lengths.keySet() );
+        Collections.sort( symbols );
 
-        BNode current = root;
+        VarInt.write( dos, symbols.size() );
 
-        while ( !current.isLeaf() )  {
-            int bit = bitReader.readBit();
-            current = ( bit == 0 ) ? current.getLeft() : current.getRight();
-        }
-
-        return current.getCharacter();
-    }
-
-    private void writeTable( DataOutputStream dos, Map<Integer, Integer> freq ) throws IOException  {
-
-        dos.writeShort( freq.size() );
-        for ( Map.Entry<Integer, Integer> entry : freq.entrySet() )  {
-            dos.writeShort( entry.getKey() );
-            dos.writeInt( entry.getValue() );
+        int previous = 0;
+        for ( int symbol : symbols )  {
+            VarInt.write( dos, symbol - previous );   
+            dos.writeByte( lengths.get( symbol ) );     
+            previous = symbol;
         }
     }
 
-    private Map<Integer, Integer> readTable( DataInputStream dis ) throws IOException  {
+    private Map<Integer, Integer> readLengthTable( DataInputStream dis ) throws IOException  {
 
-        Map<Integer, Integer> table = new LinkedHashMap<>();
-        short size = dis.readShort();
+        Map<Integer, Integer> lengths = new LinkedHashMap<>();
+        int size = VarInt.read( dis );
 
+        int previous = 0;
         for ( int i = 0; i < size; i++ )  {
-            int key   = dis.readShort();
-            int value = dis.readInt();
-            table.put( key, value );
+            int delta  = VarInt.read( dis );
+            int symbol = previous + delta;
+            int length = dis.readUnsignedByte();
+
+            lengths.put( symbol, length );
+            previous = symbol;
         }
 
-        return table;
+        return lengths;
     }
 
     @Override
@@ -85,27 +81,49 @@ public class LZ77HuffmanCoder implements CompressionAlgorithm  {
             }
         }
 
-        boolean hasMatches = !distanceFreq.isEmpty();  
+        boolean hasMatches = !distanceFreq.isEmpty();
 
         BTree symbolTree = new BTree();
         symbolTree.setHeaderTable( symbolFreq );
         symbolTree.buildTree();
-        Map<Integer, String> symbolCodes = symbolTree.getConversionTable();
+        BNode symbolRoot = symbolTree.getRoot();
 
-        Map<Integer, String> distanceCodes = Collections.emptyMap();  
+        boolean symbolSingle = symbolRoot != null && symbolRoot.getLeft() != null && symbolRoot.getRight() == null;
 
-        if ( hasMatches )  {                            
+        Map<Integer, Integer> symbolLengths = symbolSingle
+                ? Map.of( symbolRoot.getLeft().getCharacter(), 0 )
+                : CanonicalHuffman.computeLengths( symbolRoot );
+
+        Map<Integer, String> symbolCodes = symbolSingle
+                ? Map.of()
+                : CanonicalHuffman.buildCanonicalCodes( symbolLengths );
+
+        Map<Integer, Integer> distanceLengths = Map.of();
+        Map<Integer, String>  distanceCodes   = Map.of();
+        boolean                distanceSingle  = false;
+
+        if ( hasMatches )  {
             BTree distanceTree = new BTree();
             distanceTree.setHeaderTable( distanceFreq );
             distanceTree.buildTree();
-            distanceCodes = distanceTree.getConversionTable();
+            BNode distanceRoot = distanceTree.getRoot();
+
+            distanceSingle = distanceRoot.getLeft() != null && distanceRoot.getRight() == null;
+
+            distanceLengths = distanceSingle
+                    ? Map.of( distanceRoot.getLeft().getCharacter(), 0 )
+                    : CanonicalHuffman.computeLengths( distanceRoot );
+
+            distanceCodes = distanceSingle
+                    ? Map.of()
+                    : CanonicalHuffman.buildCanonicalCodes( distanceLengths );
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream      dos  = new DataOutputStream( baos );
 
-        writeTable( dos, symbolFreq );
-        writeTable( dos, distanceFreq );
+        writeLengthTable( dos, symbolLengths );
+        writeLengthTable( dos, distanceLengths );
         dos.writeInt( tokens.size() );
 
         BitWriter bitWriter = new BitWriter( dos );
@@ -114,12 +132,12 @@ public class LZ77HuffmanCoder implements CompressionAlgorithm  {
             switch ( token )  {
                 case Literal literal ->  {
                     int symbol = literal.value() & 0xFF;
-                    bitWriter.writeBits( symbolCodes.get( symbol ) );
+                    if ( !symbolSingle )  bitWriter.writeBits( symbolCodes.get( symbol ) );
                 }
                 case Match match ->  {
                     int symbol = lengthToSymbol( match.length() );
-                    bitWriter.writeBits( symbolCodes.get( symbol ) );
-                    bitWriter.writeBits( distanceCodes.get( match.distance() ) );
+                    if ( !symbolSingle )    bitWriter.writeBits( symbolCodes.get( symbol ) );
+                    if ( !distanceSingle )  bitWriter.writeBits( distanceCodes.get( match.distance() ) );
                 }
             }
         }
@@ -135,25 +153,20 @@ public class LZ77HuffmanCoder implements CompressionAlgorithm  {
 
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream( compressedData ) );
 
-        Map<Integer, Integer> symbolFreq   = readTable( dis );
-        Map<Integer, Integer> distanceFreq = readTable( dis );
+        Map<Integer, Integer> symbolLengths   = readLengthTable( dis );
+        Map<Integer, Integer> distanceLengths = readLengthTable( dis );
 
-        BTree symbolTree = new BTree();
-        symbolTree.setHeaderTable( symbolFreq );
-        symbolTree.buildTree();
+        boolean symbolSingle   = symbolLengths.size() == 1;
+        boolean distanceSingle = distanceLengths.size() == 1;
+        boolean hasMatches     = !distanceLengths.isEmpty();
 
-        BNode   symbolRoot     = symbolTree.getRoot();
-        BNode   distanceRoot   = null;                          
-        boolean distanceSingle = false;                     
+        Map<String, Integer> symbolCodeToSymbol = symbolSingle
+                ? Map.of()
+                : CanonicalHuffman.invert( CanonicalHuffman.buildCanonicalCodes( symbolLengths ) );
 
-        if ( !distanceFreq.isEmpty() )  {                   
-            BTree distanceTree = new BTree();
-            distanceTree.setHeaderTable( distanceFreq );
-            distanceTree.buildTree();
-
-            distanceRoot   = distanceTree.getRoot();
-            distanceSingle = distanceRoot.getLeft() != null && distanceRoot.getRight() == null;
-        }
+        Map<String, Integer> distanceCodeToSymbol = ( hasMatches && !distanceSingle )
+                ? CanonicalHuffman.invert( CanonicalHuffman.buildCanonicalCodes( distanceLengths ) )
+                : Map.of();
 
         int totalTokens = dis.readInt();
 
@@ -161,18 +174,23 @@ public class LZ77HuffmanCoder implements CompressionAlgorithm  {
 
         List<LZ77Token> tokens = new ArrayList<>( totalTokens );
 
-        boolean symbolSingle = symbolRoot != null && symbolRoot.getLeft() != null && symbolRoot.getRight() == null;
+        int symbolSingleValue   = symbolSingle   ? symbolLengths.keySet().iterator().next()   : -1;
+        int distanceSingleValue = distanceSingle ? distanceLengths.keySet().iterator().next() : -1;
 
         for ( int t = 0; t < totalTokens; t++ )  {
 
-            int symbol = decodeSymbol( bitReader, symbolRoot, symbolSingle );
+            int symbol = symbolSingle
+                    ? symbolSingleValue
+                    : CanonicalHuffman.decodeSymbol( bitReader, symbolCodeToSymbol );
 
             if ( symbol < LENGTH_SYMBOL_BASE )  {
                 tokens.add( new Literal( (byte) symbol ) );
             }
             else  {
                 int length   = symbolToLength( symbol );
-                int distance = decodeSymbol( bitReader, distanceRoot, distanceSingle ); 
+                int distance = distanceSingle
+                        ? distanceSingleValue
+                        : CanonicalHuffman.decodeSymbol( bitReader, distanceCodeToSymbol );
                 tokens.add( new Match( distance, length ) );
             }
         }

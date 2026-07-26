@@ -1,7 +1,6 @@
 This is a TODO list with improvements and new features;
 
 - Might add .bat/.sh to compile and run with easier commands
-- Add LZW
 - Add Arithmetic/Range coding
 - Add BWT + MTF
 - Fix compressed file format (file.bmp turns into file.bmp.woof)

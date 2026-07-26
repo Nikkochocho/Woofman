@@ -84,6 +84,9 @@ public class Decoder  {
             short fileCount = dis.readShort();
             long  tocOffset = dis.readLong();
 
+            boolean singleFile = fileCount == 1;
+            Path    parentDir  = output.getParent() != null ? output.getParent() : Path.of( "." );
+
             for ( int i = 0; i < fileCount; i++ )  {
                 short  nameLen   = dis.readShort();
                 byte[] nameBytes = new byte[ nameLen ];
@@ -118,8 +121,11 @@ public class Decoder  {
                     throw new IOException( "SHA-256 verification failed: " + name );
                 }
 
-                Path target = output.resolve(name).normalize();
-                if ( !target.startsWith( output ) )  {
+                Path boundary = ( singleFile ? parentDir : output ).toAbsolutePath().normalize();
+                Path target   = ( singleFile ? parentDir.resolve( name ) : output.resolve( name ) )
+                                .toAbsolutePath().normalize();
+
+                if ( !target.startsWith( boundary ) )  {
                     throw new IOException( "Path traversal detected: " + name );
                 }
 

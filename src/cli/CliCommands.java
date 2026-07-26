@@ -40,6 +40,12 @@ public class CliCommands  {
         return list;
     }
 
+    private static String stripExtension( String fileName )  {
+
+        int dotIndex = fileName.lastIndexOf( '.' );
+        return dotIndex > 0 ? fileName.substring( 0, dotIndex ) : fileName;
+    }
+
     private static void timeMeasure( Runnable process )  {
         
         long start = System.nanoTime();
@@ -79,7 +85,9 @@ public class CliCommands  {
             choices.put( file, AlgorithmCatalog.parseChoice( input, options ) );
         }
 
-        Path outputFile = source.resolveSibling( source.getFileName() + ".woof" );
+        Path outputFile = Files.isRegularFile( source )
+                ? source.resolveSibling( stripExtension( source.getFileName().toString() ) + ".woof" )
+                : source.resolveSibling( source.getFileName() + ".woof" );
 
         System.out.println( "\nENCODING..." );
         Encoder encoder = new Encoder( source, outputFile );

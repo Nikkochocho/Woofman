@@ -1,54 +1,30 @@
 package compression.lzw;
 
-import java.io.*;
-import java.util.*;
-
 import compression.CompressionAlgorithm;
 import compression.huffman.BNode;
 import compression.huffman.BTree;
 import compression.huffman.CanonicalHuffman;
+import java.io.*;
+import java.util.*;
 import util.BitReader;
 import util.BitWriter;
+import util.VarInt;
 
 
 public class LZWHuffmanCoder implements CompressionAlgorithm  {
 
     private final LZWTokenizer tokenizer = new LZWTokenizer();
 
-    private void writeVarInt( DataOutputStream dos, int value ) throws IOException  {
-
-        while ( ( value & ~0x7F ) != 0 )  {
-            dos.writeByte( ( value & 0x7F ) | 0x80 );
-            value >>>= 7;
-        }
-        dos.writeByte( value & 0x7F );
-    }
-
-    private int readVarInt( DataInputStream dis ) throws IOException  {
-
-        int value = 0;
-        int shift = 0;
-        int b;
-
-        do  {
-            b = dis.readUnsignedByte();
-            value |= ( b & 0x7F ) << shift;
-            shift += 7;
-        } while ( ( b & 0x80 ) != 0 );
-
-        return value;
-    }
-
     private void writeLengthTable( DataOutputStream dos, Map<Integer, Integer> lengths ) throws IOException  {
 
         List<Integer> symbols = new ArrayList<>( lengths.keySet() );
         Collections.sort( symbols );                    
 
-        writeVarInt( dos, symbols.size() );
+        VarInt.write( dos, symbols.size() );
 
         int previous = 0;
         for ( int symbol : symbols )  {
-            writeVarInt( dos, symbol - previous );        
+            VarInt.write( dos, symbol - previous );        
             dos.writeByte( lengths.get( symbol ) );
             previous = symbol;
         }
@@ -57,11 +33,11 @@ public class LZWHuffmanCoder implements CompressionAlgorithm  {
     private Map<Integer, Integer> readLengthTable( DataInputStream dis ) throws IOException  {
 
         Map<Integer, Integer> lengths = new LinkedHashMap<>();
-        int size = readVarInt( dis );
+        int size = VarInt.read( dis );
 
         int previous = 0;
         for ( int i = 0; i < size; i++ )  {
-            int delta  = readVarInt( dis );
+            int delta  = VarInt.read( dis );
             int symbol = previous + delta;
             int length = dis.readUnsignedByte();
 
