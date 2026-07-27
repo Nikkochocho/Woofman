@@ -1,4 +1,4 @@
-package compression.huffman;
+package compression.entropy.huffman;
 
 import compression.CompressionAlgorithm;
 import java.io.*;

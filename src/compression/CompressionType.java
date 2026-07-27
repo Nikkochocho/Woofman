@@ -9,7 +9,10 @@ public enum CompressionType  {
     DELTA_HUFFMAN( (byte) 4 ),
     PAETH_HUFFMAN( (byte) 5 ),
     LZW( (byte) 6 ),
-    LZW_HUFFMAN( (byte) 7 );
+    LZW_HUFFMAN( (byte) 7 ),
+    RANGE( (byte) 8 ),
+    LZ77_RANGE( (byte) 9 ),
+    LZW_RANGE( (byte) 10 );
 
     private final byte code;
 

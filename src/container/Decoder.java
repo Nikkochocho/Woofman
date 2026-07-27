@@ -2,13 +2,16 @@ package container;
 
 import compression.CompressionAlgorithm;
 import compression.CompressionType;
+import compression.entropy.huffman.HuffmanCoder;
+import compression.entropy.range.RangeCoder;
 import compression.filters.bmp.BmpPaethHuffmanCoder;
 import compression.filters.wav.WavDeltaHuffmanCoder;
-import compression.huffman.HuffmanCoder;
 import compression.lz77.LZ77HuffmanCoder;
 import compression.lz77.LZ77OnlyCoder;
+import compression.lz77.LZ77RangeCoder;
 import compression.lzw.LZWCoder;
 import compression.lzw.LZWHuffmanCoder;
+import compression.lzw.LZWRangeCoder;
 import compression.rle.RLECoder;
 import java.io.*;
 import java.nio.file.Files;
@@ -112,6 +115,9 @@ public class Decoder  {
                     case PAETH_HUFFMAN -> new BmpPaethHuffmanCoder();
                     case LZW           -> new LZWCoder();
                     case LZW_HUFFMAN   -> new LZWHuffmanCoder();
+                    case RANGE         -> new RangeCoder();
+                    case LZ77_RANGE    -> new LZ77RangeCoder();
+                    case LZW_RANGE     -> new LZWRangeCoder();
                 };
 
                 byte[] decompressed  = algorithm.decompress( compressedBytes );

@@ -1,12 +1,30 @@
 package cli;
 
 import compression.CompressionType;
+import java.util.ArrayList;
 import java.util.List;
 
 
 public final class AlgorithmCatalog  {
 
     private AlgorithmCatalog()  {}
+
+    private static final List<CompressionType> GENERIC = List.of(
+        CompressionType.HUFFMAN,
+        CompressionType.LZ77_HUFFMAN,
+        CompressionType.LZW,
+        CompressionType.LZW_HUFFMAN,
+        CompressionType.RANGE,
+        CompressionType.LZ77_RANGE,
+        CompressionType.LZW_RANGE
+    );
+
+    private static List<CompressionType> withExtras( CompressionType... extras )  {
+
+        List<CompressionType> combined = new ArrayList<>( GENERIC );
+        combined.addAll( List.of( extras ) );
+        return combined;
+    }
 
     private static boolean matchesFriendlyName( CompressionType type, String input )  {
         
@@ -17,6 +35,9 @@ public final class AlgorithmCatalog  {
             case PAETH_HUFFMAN -> input.equals( "paeth" );
             case LZW           -> input.equals( "lzw" );
             case LZW_HUFFMAN   -> input.equals( "lzw+huffman" );
+            case RANGE         -> input.equals( "range" );
+            case LZ77_RANGE    -> input.equals( "lzma" ) || input.equals( "lz77+range" );
+            case LZW_RANGE     -> input.equals( "lzw+range" );
             default            -> false;
         };
     }
@@ -24,10 +45,10 @@ public final class AlgorithmCatalog  {
     public static List<CompressionType> suggestOptions( FileKind kind )  {
 
         return switch ( kind )  {
-            case WAV     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.DELTA_HUFFMAN );
-            case BMP     -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN, CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.PAETH_HUFFMAN );
-            case TEXT    -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN );
-            case UNKNOWN -> List.of( CompressionType.HUFFMAN, CompressionType.LZ77_HUFFMAN, CompressionType.LZW, CompressionType.LZW_HUFFMAN, CompressionType.RLE );
+            case WAV     -> withExtras( CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.DELTA_HUFFMAN );
+            case BMP     -> withExtras( CompressionType.RLE, CompressionType.LZ77_ONLY, CompressionType.PAETH_HUFFMAN );
+            case TEXT    -> withExtras();
+            case UNKNOWN -> withExtras( CompressionType.RLE );
         };
     }
 
@@ -42,6 +63,9 @@ public final class AlgorithmCatalog  {
             case PAETH_HUFFMAN -> "Paeth";
             case LZW           -> "LZW";
             case LZW_HUFFMAN   -> "LZW + Huffman";
+            case RANGE         -> "Range Coding";
+            case LZ77_RANGE    -> "LZMA";
+            case LZW_RANGE     -> "LZW+Range";
         };
     }
 

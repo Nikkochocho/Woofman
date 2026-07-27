@@ -1,52 +1,19 @@
 package compression.lzw;
 
 import compression.CompressionAlgorithm;
-import compression.huffman.BNode;
-import compression.huffman.BTree;
-import compression.huffman.CanonicalHuffman;
+import compression.entropy.FrequencyTableCodec;
+import compression.entropy.huffman.BNode;
+import compression.entropy.huffman.BTree;
+import compression.entropy.huffman.CanonicalHuffman;
 import java.io.*;
 import java.util.*;
 import util.BitReader;
 import util.BitWriter;
-import util.VarInt;
 
 
 public class LZWHuffmanCoder implements CompressionAlgorithm  {
 
     private final LZWTokenizer tokenizer = new LZWTokenizer();
-
-    private void writeLengthTable( DataOutputStream dos, Map<Integer, Integer> lengths ) throws IOException  {
-
-        List<Integer> symbols = new ArrayList<>( lengths.keySet() );
-        Collections.sort( symbols );                    
-
-        VarInt.write( dos, symbols.size() );
-
-        int previous = 0;
-        for ( int symbol : symbols )  {
-            VarInt.write( dos, symbol - previous );        
-            dos.writeByte( lengths.get( symbol ) );
-            previous = symbol;
-        }
-    }
-
-    private Map<Integer, Integer> readLengthTable( DataInputStream dis ) throws IOException  {
-
-        Map<Integer, Integer> lengths = new LinkedHashMap<>();
-        int size = VarInt.read( dis );
-
-        int previous = 0;
-        for ( int i = 0; i < size; i++ )  {
-            int delta  = VarInt.read( dis );
-            int symbol = previous + delta;
-            int length = dis.readUnsignedByte();
-
-            lengths.put( symbol, length );
-            previous = symbol;
-        }
-
-        return lengths;
-    }
 
     @Override
     public byte[] compress( byte[] data ) throws IOException  {
@@ -81,7 +48,7 @@ public class LZWHuffmanCoder implements CompressionAlgorithm  {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream      dos  = new DataOutputStream( baos );
 
-        writeLengthTable( dos, lengths );
+        FrequencyTableCodec.writeLengthTable( dos, lengths );
         dos.writeInt( codes.size() );
 
         BitWriter bitWriter = new BitWriter( dos );
@@ -101,7 +68,7 @@ public class LZWHuffmanCoder implements CompressionAlgorithm  {
 
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream( compressedData ) );
 
-        Map<Integer, Integer> lengths = readLengthTable( dis );
+        Map<Integer, Integer>  lengths = FrequencyTableCodec.readLengthTable( dis );
         boolean                single  = lengths.size() == 1;
 
         int totalTokens = dis.readInt();

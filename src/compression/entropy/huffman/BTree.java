@@ -1,4 +1,4 @@
-package compression.huffman;
+package compression.entropy.huffman;
 
 import java.util.Map;
 import java.util.HashMap;

@@ -1,9 +1,8 @@
 package compression.filters.wav;
 
-import java.io.IOException;
-
 import compression.CompressionAlgorithm;
-import compression.huffman.HuffmanCoder;
+import compression.entropy.huffman.HuffmanCoder;
+import java.io.IOException;
 
 
 public class WavDeltaHuffmanCoder implements CompressionAlgorithm  {

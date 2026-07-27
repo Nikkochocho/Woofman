@@ -1,10 +1,9 @@
 package compression.filters.bmp;
 
+import compression.CompressionAlgorithm;
+import compression.entropy.huffman.HuffmanCoder;
 import java.io.IOException;
 import java.util.Arrays;
-
-import compression.CompressionAlgorithm;
-import compression.huffman.HuffmanCoder;
 
 
 public class BmpPaethHuffmanCoder implements CompressionAlgorithm  {

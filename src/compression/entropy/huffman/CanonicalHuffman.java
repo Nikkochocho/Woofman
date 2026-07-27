@@ -1,8 +1,7 @@
-package compression.huffman;
+package compression.entropy.huffman;
 
 import java.io.IOException;
 import java.util.*;
-
 import util.BitReader;
 
 
