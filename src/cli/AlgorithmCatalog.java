@@ -16,7 +16,8 @@ public final class AlgorithmCatalog  {
         CompressionType.LZW_HUFFMAN,
         CompressionType.RANGE,
         CompressionType.LZ77_RANGE,
-        CompressionType.LZW_RANGE
+        CompressionType.LZW_RANGE,
+        CompressionType.RANGE_ADAPTIVE
     );
 
     private static List<CompressionType> withExtras( CompressionType... extras )  {
@@ -29,16 +30,17 @@ public final class AlgorithmCatalog  {
     private static boolean matchesFriendlyName( CompressionType type, String input )  {
         
         return switch ( type )  {
-            case LZ77_HUFFMAN  -> input.equals( "deflate" ) || input.equals( "lz77+huffman" );
-            case LZ77_ONLY     -> input.equals( "lz77" );
-            case DELTA_HUFFMAN -> input.equals( "delta" );
-            case PAETH_HUFFMAN -> input.equals( "paeth" );
-            case LZW           -> input.equals( "lzw" );
-            case LZW_HUFFMAN   -> input.equals( "lzw+huffman" );
-            case RANGE         -> input.equals( "range" );
-            case LZ77_RANGE    -> input.equals( "lzma" ) || input.equals( "lz77+range" );
-            case LZW_RANGE     -> input.equals( "lzw+range" );
-            default            -> false;
+            case LZ77_HUFFMAN   -> input.equals( "deflate" ) || input.equals( "lz77+huffman" );
+            case LZ77_ONLY      -> input.equals( "lz77" );
+            case DELTA_HUFFMAN  -> input.equals( "delta" );
+            case PAETH_HUFFMAN  -> input.equals( "paeth" );
+            case LZW            -> input.equals( "lzw" );
+            case LZW_HUFFMAN    -> input.equals( "lzw+huffman" );
+            case RANGE          -> input.equals( "range" );
+            case LZ77_RANGE     -> input.equals( "lzma" ) || input.equals( "lz77+range" );
+            case LZW_RANGE      -> input.equals( "lzw+range" );
+            case RANGE_ADAPTIVE -> input.equals( "range-adaptive" ) || input.equals( "arange" );
+            default             -> false;
         };
     }
 
@@ -66,6 +68,7 @@ public final class AlgorithmCatalog  {
             case RANGE         -> "Range Coding";
             case LZ77_RANGE    -> "LZMA";
             case LZW_RANGE     -> "LZW+Range";
+            case RANGE_ADAPTIVE -> "Range (Adaptive)";
         };
     }
 
