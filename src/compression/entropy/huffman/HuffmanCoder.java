@@ -1,6 +1,7 @@
 package compression.entropy.huffman;
 
 import compression.CompressionAlgorithm;
+import compression.entropy.FrequencyTableCodec;
 import java.io.*;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -14,39 +15,42 @@ public class HuffmanCoder implements CompressionAlgorithm  {
     @Override
     public byte[] compress( byte[] data ) throws IOException  {
 
-        Map<Integer, Integer> headerTable = new HashMap<>();
-        BTree                 tree        = new BTree();
-
+        Map<Integer, Integer> freq = new HashMap<>();
         for ( byte b : data )  {
-            int symbol = b & 0xFF;                          
-            headerTable.merge( symbol, 1, Integer :: sum );
+            freq.merge( b & 0xFF, 1, Integer::sum );
         }
 
-        tree.setHeaderTable( headerTable );
+        BTree tree = new BTree();
+        tree.setHeaderTable( freq );
         tree.buildTree();
+        BNode root = tree.getRoot();
 
-        Map<Integer, String> conversionTable = tree.getConversionTable();
+        boolean single = root != null && root.getLeft() != null && root.getRight() == null;
 
-        long totalBits = 0;
-        for ( byte b : data )  {
-            totalBits += conversionTable.get( b & 0xFF ).length();  
+        Map<Integer, Integer> lengths;
+        Map<Integer, String>  canonicalCodes;
+
+        if ( single )  {
+            lengths        = new LinkedHashMap<>();
+            lengths.put( root.getLeft().getCharacter(), 0 );
+            canonicalCodes = Map.of();
+        }
+        else  {
+            lengths        = CanonicalHuffman.computeLengths( root );
+            canonicalCodes = CanonicalHuffman.buildCanonicalCodes( lengths );
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream      dos  = new DataOutputStream( baos );
 
-        dos.writeShort( headerTable.size() );
-
-        for ( Map.Entry<Integer, Integer> entry : headerTable.entrySet() )  {
-            dos.writeShort( entry.getKey() );                        
-            dos.writeInt( entry.getValue() );
-        }
-
-        dos.writeInt( (int) totalBits );
+        FrequencyTableCodec.writeLengthTable( dos, lengths );
+        dos.writeInt( data.length );
 
         BitWriter bitWriter = new BitWriter( dos );
-        for ( byte b : data )  {
-            bitWriter.writeBits( conversionTable.get( b & 0xFF ) ); 
+        if ( !single )  {
+            for ( byte b : data )  {
+                bitWriter.writeBits( canonicalCodes.get( b & 0xFF ) );
+            }
         }
         bitWriter.flush();
 
@@ -59,45 +63,32 @@ public class HuffmanCoder implements CompressionAlgorithm  {
 
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream( compressedData ) );
 
-        Map<Integer, Integer> headerTable = new LinkedHashMap<>();
-        short tableSize = dis.readShort();
+        Map<Integer, Integer> lengths = FrequencyTableCodec.readLengthTable( dis );
+        boolean                single = lengths.size() == 1;
 
-        for ( int i = 0; i < tableSize; i++ )  {
-            int key   = dis.readShort();      
-            int value = dis.readInt();
-            headerTable.put( key, value );
-        }
-
-        BTree tree = new BTree();
-        tree.setHeaderTable( headerTable );
-        tree.buildTree();
-        BNode root = tree.getRoot();
-
-        int totalBits = dis.readInt();
+        int totalBytes = dis.readInt();
 
         BitReader bitReader = new BitReader( dis, dis.available() );
 
-        ByteArrayOutputStream baos    = new ByteArrayOutputStream();
-        BNode                 current = root;
+        ByteArrayOutputStream output = new ByteArrayOutputStream( totalBytes );
 
-        boolean singleSymbol = root != null && root.getLeft() != null && root.getRight() == null;
+        if ( single )  {
 
-        for ( int bitsRead = 0; bitsRead < totalBits; bitsRead++ )  {
-            int bit = bitReader.readBit();
-
-            if ( singleSymbol )  {
-                baos.write( root.getLeft().getCharacter() );   
-                continue;
+            int symbol = lengths.keySet().iterator().next();
+            for ( int i = 0; i < totalBytes; i++ )  {
+                output.write( symbol );
             }
+        }
+        else  {
 
-            current = ( bit == 0 ) ? current.getLeft() : current.getRight();
+            Map<Integer, String> canonicalCodes = CanonicalHuffman.buildCanonicalCodes( lengths );
+            Map<String, Integer> codeToSymbol   = CanonicalHuffman.invert( canonicalCodes );
 
-            if ( current.isLeaf() )  {
-                baos.write( current.getCharacter() );
-                current = root;
+            for ( int i = 0; i < totalBytes; i++ )  {
+                output.write( CanonicalHuffman.decodeSymbol( bitReader, codeToSymbol ) );
             }
         }
 
-        return baos.toByteArray();
+        return output.toByteArray();
     }
 }

@@ -1,20 +1,20 @@
-package compression.entropy.range;
+package compression.entropy.model;
 
 import java.util.*;
 
 
-public class FrequencyModel  {
+public class FrequencyModel implements SymbolModel  {
 
     private final List<Integer>         symbols;
     private final int[]                 cumFreq;
     private final Map<Integer, Integer> indexOf   = new HashMap<>();
 
-    public final int totalFreq;
+    private final int totalFreq;
 
     public static final int MAX_TOTAL = 1 << 15;   
 
     public FrequencyModel( Map<Integer, Integer> freq )  {
-
+        
         symbols = new ArrayList<>( freq.keySet() );
         Collections.sort( symbols );
 
@@ -26,11 +26,13 @@ public class FrequencyModel  {
         totalFreq = cumFreq[ symbols.size() ];
     }
 
-    public int cumStart( int symbol )  { return cumFreq[ indexOf.get( symbol ) ]; }
-    public int freqOf( int symbol )    { int i = indexOf.get( symbol ); return cumFreq[i + 1] - cumFreq[i]; }
-    public int symbolAt( int index )   { return symbols.get( index ); }
-    public int cumStartAt( int index ) { return cumFreq[ index ]; }
-    public int freqAt( int index )     { return cumFreq[index + 1] - cumFreq[index]; }
+    @Override public int totalFreq()  { return totalFreq; }  
+
+    @Override public int cumStart( int symbol )  { return cumFreq[ indexOf.get( symbol ) ]; }
+    @Override public int freqOf( int symbol )    { int i = indexOf.get( symbol ); return cumFreq[i + 1] - cumFreq[i]; }
+    @Override public int symbolAt( int index )   { return symbols.get( index ); }
+    @Override public int cumStartAt( int index ) { return cumFreq[ index ]; }
+    @Override public int freqAt( int index )     { return cumFreq[index + 1] - cumFreq[index]; }
 
     public int findIndex( int value )  {
 

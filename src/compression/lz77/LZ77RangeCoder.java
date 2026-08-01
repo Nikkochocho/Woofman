@@ -2,7 +2,10 @@ package compression.lz77;
 
 import compression.CompressionAlgorithm;
 import compression.entropy.FrequencyTableCodec;
-import compression.entropy.range.FrequencyModel;
+import compression.entropy.model.FrequencyModel;
+import compression.entropy.model.ModelSelector;
+import compression.entropy.model.SparseAdaptiveFrequencyModel;
+import compression.entropy.model.SymbolModel;
 import compression.entropy.range.RangeDecoder;
 import compression.entropy.range.RangeEncoder;
 import java.io.*;
@@ -18,6 +21,56 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
 
     private int lengthToSymbol( int length )  { return LENGTH_SYMBOL_BASE + ( length - MIN_MATCH ); }
     private int symbolToLength( int symbol )  { return ( symbol - LENGTH_SYMBOL_BASE ) + MIN_MATCH; }
+
+    private int measureBytes( HeaderWriter writer ) throws IOException  {
+
+        ByteArrayOutputStream probe = new ByteArrayOutputStream();
+        writer.write( new DataOutputStream( probe ) );
+        return probe.size();
+    }
+
+    private interface HeaderWriter  {
+        void write( DataOutputStream dos ) throws IOException;
+    }
+
+    private SymbolModel selectAndWriteModel( DataOutputStream dos, Map<Integer, Integer> freq, int totalSymbols ) throws IOException  {
+
+        if ( freq.isEmpty() )  {
+            dos.writeByte( 0 );
+            FrequencyTableCodec.writeSparseTable( dos, freq );
+            return new FrequencyModel( freq );
+        }
+
+        Map<Integer, Integer> scaledFreq = FrequencyModel.scale( freq );
+
+        int staticHeaderBytes   = measureBytes( d -> FrequencyTableCodec.writeSparseTable( d, scaledFreq ) );
+        int adaptiveHeaderBytes = measureBytes( d -> FrequencyTableCodec.writeSparseAlphabet( d, freq.keySet() ) );
+
+        boolean useAdaptive = ModelSelector.shouldUseAdaptive( freq, totalSymbols, staticHeaderBytes, adaptiveHeaderBytes );
+
+        dos.writeByte( useAdaptive ? 1 : 0 );
+
+        if ( useAdaptive )  {
+            FrequencyTableCodec.writeSparseAlphabet( dos, freq.keySet() );
+            return new SparseAdaptiveFrequencyModel( freq.keySet() );
+        }
+
+        FrequencyTableCodec.writeSparseTable( dos, scaledFreq );
+        return new FrequencyModel( scaledFreq );
+    }
+
+    private SymbolModel readModel( DataInputStream dis ) throws IOException  {
+
+        boolean useAdaptive = dis.readByte() == 1;
+
+        if ( useAdaptive )  {
+            List<Integer> alphabet = FrequencyTableCodec.readSparseAlphabet( dis );
+            return new SparseAdaptiveFrequencyModel( alphabet );
+        }
+
+        Map<Integer, Integer> freq = FrequencyTableCodec.readSparseTable( dis );
+        return new FrequencyModel( freq );
+    }
 
     @Override
     public byte[] compress( byte[] data ) throws IOException  {
@@ -39,18 +92,31 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
             }
         }
 
-        symbolFreq   = FrequencyModel.scale( symbolFreq );
-        distanceFreq = distanceFreq.isEmpty() ? distanceFreq : FrequencyModel.scale( distanceFreq );
-
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream      dos  = new DataOutputStream( baos );
 
-        FrequencyTableCodec.writeSparseTable( dos, symbolFreq );
-        FrequencyTableCodec.writeSparseTable( dos, distanceFreq );
         dos.writeInt( tokens.size() );
 
-        FrequencyModel symbolModel   = new FrequencyModel( symbolFreq );
-        FrequencyModel distanceModel = distanceFreq.isEmpty() ? null : new FrequencyModel( distanceFreq );
+        if ( tokens.isEmpty() )  {
+            dos.writeByte( 0 );
+            FrequencyTableCodec.writeSparseTable( dos, symbolFreq );
+            dos.writeByte( 0 );
+            FrequencyTableCodec.writeSparseTable( dos, distanceFreq );
+            dos.flush();
+            return baos.toByteArray();
+        }
+
+        SymbolModel symbolModel   = selectAndWriteModel( dos, symbolFreq, tokens.size() );
+        SymbolModel distanceModel;
+
+        if ( distanceFreq.isEmpty() )  {                          
+            dos.writeByte( 0 );
+            FrequencyTableCodec.writeSparseTable( dos, distanceFreq );
+            distanceModel = null;
+        }
+        else  {
+            distanceModel = selectAndWriteModel( dos, distanceFreq, sumValues( distanceFreq ) );
+        }
 
         RangeEncoder encoder = new RangeEncoder( dos );
 
@@ -58,14 +124,17 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
             switch ( token )  {
                 case Literal literal ->  {
                     int symbol = literal.value() & 0xFF;
-                    encoder.encode( symbolModel.cumStart( symbol ), symbolModel.freqOf( symbol ), symbolModel.totalFreq );
+                    encoder.encode( symbolModel.cumStart( symbol ), symbolModel.freqOf( symbol ), symbolModel.totalFreq() );
+                    symbolModel.increment( symbol );
                 }
                 case Match match ->  {
                     int symbol = lengthToSymbol( match.length() );
-                    encoder.encode( symbolModel.cumStart( symbol ), symbolModel.freqOf( symbol ), symbolModel.totalFreq );
+                    encoder.encode( symbolModel.cumStart( symbol ), symbolModel.freqOf( symbol ), symbolModel.totalFreq() );
+                    symbolModel.increment( symbol );
 
                     int distance = match.distance();
-                    encoder.encode( distanceModel.cumStart( distance ), distanceModel.freqOf( distance ), distanceModel.totalFreq );
+                    encoder.encode( distanceModel.cumStart( distance ), distanceModel.freqOf( distance ), distanceModel.totalFreq() );
+                    distanceModel.increment( distance );
                 }
             }
         }
@@ -76,17 +145,29 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
         return baos.toByteArray();
     }
 
+    private int sumValues( Map<Integer, Integer> freq )  {
+        int sum = 0;
+        for ( int f : freq.values() )  sum += f;
+        return sum;
+    }
+
     @Override
     public byte[] decompress( byte[] compressedData ) throws IOException  {
 
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream( compressedData ) );
 
-        Map<Integer, Integer> symbolFreq   = FrequencyTableCodec.readSparseTable( dis );
-        Map<Integer, Integer> distanceFreq = FrequencyTableCodec.readSparseTable( dis );
         int totalTokens = dis.readInt();
 
-        FrequencyModel symbolModel   = new FrequencyModel( symbolFreq );
-        FrequencyModel distanceModel = distanceFreq.isEmpty() ? null : new FrequencyModel( distanceFreq );
+        if ( totalTokens == 0 )  {
+            dis.readByte();
+            FrequencyTableCodec.readSparseTable( dis );
+            dis.readByte();
+            FrequencyTableCodec.readSparseTable( dis );
+            return lz77.detokenize( Collections.emptyList() );
+        }
+
+        SymbolModel symbolModel   = readModel( dis );
+        SymbolModel distanceModel = readModel( dis );
 
         RangeDecoder decoder = new RangeDecoder( dis );
 
@@ -94,10 +175,11 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
 
         for ( int t = 0; t < totalTokens; t++ )  {
 
-            int symbolValue = decoder.getFreqValue( symbolModel.totalFreq );
+            int symbolValue = decoder.getFreqValue( symbolModel.totalFreq() );
             int symbolIdx   = symbolModel.findIndex( symbolValue );
             int symbol      = symbolModel.symbolAt( symbolIdx );
-            decoder.decode( symbolModel.cumStartAt( symbolIdx ), symbolModel.freqAt( symbolIdx ), symbolModel.totalFreq );
+            decoder.decode( symbolModel.cumStartAt( symbolIdx ), symbolModel.freqAt( symbolIdx ), symbolModel.totalFreq() );
+            symbolModel.increment( symbol );
 
             if ( symbol < LENGTH_SYMBOL_BASE )  {
                 tokens.add( new Literal( (byte) symbol ) );
@@ -105,10 +187,11 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
             else  {
                 int length = symbolToLength( symbol );
 
-                int distValue = decoder.getFreqValue( distanceModel.totalFreq );
+                int distValue = decoder.getFreqValue( distanceModel.totalFreq() );
                 int distIdx   = distanceModel.findIndex( distValue );
                 int distance  = distanceModel.symbolAt( distIdx );
-                decoder.decode( distanceModel.cumStartAt( distIdx ), distanceModel.freqAt( distIdx ), distanceModel.totalFreq );
+                decoder.decode( distanceModel.cumStartAt( distIdx ), distanceModel.freqAt( distIdx ), distanceModel.totalFreq() );
+                distanceModel.increment( distance );
 
                 tokens.add( new Match( distance, length ) );
             }

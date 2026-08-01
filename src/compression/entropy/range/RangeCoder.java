@@ -2,6 +2,10 @@ package compression.entropy.range;
 
 import compression.CompressionAlgorithm;
 import compression.entropy.FrequencyTableCodec;
+import compression.entropy.model.AdaptiveFrequencyModel;
+import compression.entropy.model.ArrayFrequencyModel;
+import compression.entropy.model.ModelSelector;
+import compression.entropy.model.SymbolModel;
 import java.io.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -9,39 +13,17 @@ import java.util.Map;
 
 public class RangeCoder implements CompressionAlgorithm  {
 
-    private static final long TOP       = 1L << 24;
-    private static final long BOT       = 1L << 16;
-    private static final long MASK      = 0xFFFFFFFFL;
-    private static final int  MAX_TOTAL = 1 << 15;      
+    private static final int MAX_TOTAL     = 1 << 15;
+    private static final int ALPHABET_SIZE = 256;
 
-    private int nextByteOrZero( DataInputStream dis ) throws IOException  {
-
-        return dis.available() > 0 ? dis.readUnsignedByte() : 0;
-    }
-
-    private int findSymbol( int[] cumFreq, int value )  {
-
-        for ( int symbol = 0; symbol < 256; symbol++ )  {
-            if ( value < cumFreq[ symbol + 1 ] )  return symbol;
-        }
-        return 255;
-    }
-
-    private int[] buildCumulativeFrequencies( int[] freq )  {
-
-        int[] cum = new int[257];
-        for ( int i = 0; i < 256; i++ )  {
-            cum[i + 1] = cum[i] + freq[i];
-        }
-        return cum;
-    }
-
-    private int[] buildScaledFrequencies( byte[] data )  {
-
+    private int[] countRaw( byte[] data )  {
         int[] raw = new int[256];
         for ( byte b : data )  raw[ b & 0xFF ]++;
+        return raw;
+    }
 
-        long sum = data.length;
+    private int[] scale( int[] raw, long sum )  {
+
         if ( sum <= MAX_TOTAL )  return raw;
 
         int[] scaled    = new int[256];
@@ -54,7 +36,7 @@ public class RangeCoder implements CompressionAlgorithm  {
             }
         }
 
-        while ( scaledSum > MAX_TOTAL )  {                 
+        while ( scaledSum > MAX_TOTAL )  {
             int maxIdx = -1;
             for ( int i = 0; i < 256; i++ )  {
                 if ( scaled[i] > 1 && ( maxIdx == -1 || scaled[i] > scaled[maxIdx] ) )  maxIdx = i;
@@ -67,7 +49,6 @@ public class RangeCoder implements CompressionAlgorithm  {
     }
 
     private void writeFrequencyTable( DataOutputStream dos, int[] freq ) throws IOException  {
-
         Map<Integer, Integer> table = new LinkedHashMap<>();
         for ( int symbol = 0; symbol < 256; symbol++ )  {
             if ( freq[symbol] > 0 )  table.put( symbol, freq[symbol] );
@@ -76,12 +57,25 @@ public class RangeCoder implements CompressionAlgorithm  {
     }
 
     private int[] readFrequencyTable( DataInputStream dis ) throws IOException  {
-
         int[] freq = new int[256];
         for ( Map.Entry<Integer, Integer> entry : FrequencyTableCodec.readSparseTable( dis ).entrySet() )  {
             freq[ entry.getKey() ] = entry.getValue();
         }
         return freq;
+    }
+
+    private Map<Integer, Integer> toMap( int[] freq )  {
+        Map<Integer, Integer> map = new LinkedHashMap<>();
+        for ( int symbol = 0; symbol < 256; symbol++ )  {
+            if ( freq[symbol] > 0 )  map.put( symbol, freq[symbol] );
+        }
+        return map;
+    }
+
+    private int measureHeaderBytes( int[] freq ) throws IOException  {
+        ByteArrayOutputStream probe = new ByteArrayOutputStream();
+        writeFrequencyTable( new DataOutputStream( probe ), freq );
+        return probe.size();
     }
 
     @Override
@@ -93,49 +87,42 @@ public class RangeCoder implements CompressionAlgorithm  {
         dos.writeInt( data.length );
 
         if ( data.length == 0 )  {
+            dos.writeByte( 0 );
             writeFrequencyTable( dos, new int[256] );
+            dos.flush();
             return baos.toByteArray();
         }
 
-        int[] freq    = buildScaledFrequencies( data );
-        int[] cumFreq = buildCumulativeFrequencies( freq );
-        int   totFreq = cumFreq[256];
+        int[] raw        = countRaw( data );
+        int[] scaledFreq = scale( raw, data.length );
 
-        writeFrequencyTable( dos, freq );
+        int staticHeaderBytes   = measureHeaderBytes( scaledFreq );
+        int adaptiveHeaderBytes = 0;   
 
-        long low   = 0;
-        long range = MASK;
+        boolean useAdaptive = ModelSelector.shouldUseAdaptive( toMap( raw ), data.length, staticHeaderBytes, adaptiveHeaderBytes );
+
+        dos.writeByte( useAdaptive ? 1 : 0 );
+
+        SymbolModel model;
+        if ( useAdaptive )  {
+            model = new AdaptiveFrequencyModel( ALPHABET_SIZE );
+        }
+        else  {
+            writeFrequencyTable( dos, scaledFreq );
+            model = new ArrayFrequencyModel( scaledFreq );
+        }
+
+        RangeEncoder encoder = new RangeEncoder( dos );
 
         for ( byte b : data )  {
-
-            int  symbol = b & 0xFF;
-            long r      = range / totFreq;
-
-            low   = ( low + r * cumFreq[symbol] ) & MASK;
-            range = r * freq[symbol];
-
-            while ( true )  {
-                if ( ( ( low ^ ( low + range ) ) & MASK ) < TOP )  {
-                    // The most significant byte has already been decided.
-                }
-                else if ( range < BOT )  {
-                    range = ( -low ) & ( BOT - 1 );        
-                }
-                else  {
-                    break;
-                }
-                dos.write( (int) ( ( low >>> 24 ) & 0xFF ) );
-                low   = ( low << 8 ) & MASK;
-                range = ( range << 8 ) & MASK;
-            }
+            int symbol = b & 0xFF;
+            encoder.encode( model.cumStart( symbol ), model.freqOf( symbol ), model.totalFreq() );
+            model.increment( symbol );
         }
 
-        for ( int i = 0; i < 4; i++ )  {                    
-            dos.write( (int) ( ( low >>> 24 ) & 0xFF ) );
-            low = ( low << 8 ) & MASK;
-        }
-
+        encoder.finish();
         dos.flush();
+
         return baos.toByteArray();
     }
 
@@ -144,49 +131,36 @@ public class RangeCoder implements CompressionAlgorithm  {
 
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream( compressedData ) );
 
-        int originalLength = dis.readInt();
-        int[] freq = readFrequencyTable( dis );
+        int     originalLength = dis.readInt();
+        boolean useAdaptive    = dis.readByte() == 1;
 
-        if ( originalLength == 0 )  return new byte[0];
-
-        int[] cumFreq = buildCumulativeFrequencies( freq );
-        int   totFreq = cumFreq[256];
-
-        long low   = 0;
-        long range = MASK;
-        long code  = 0;
-
-        for ( int i = 0; i < 4; i++ )  {
-            code = ( ( code << 8 ) | nextByteOrZero( dis ) ) & MASK;
+        if ( originalLength == 0 )  {
+            readFrequencyTable( dis );
+            return new byte[0];
         }
+
+        SymbolModel model;
+        if ( useAdaptive )  {
+            model = new AdaptiveFrequencyModel( ALPHABET_SIZE );
+        }
+        else  {
+            model = new ArrayFrequencyModel( readFrequencyTable( dis ) );
+        }
+
+        RangeDecoder decoder = new RangeDecoder( dis );
 
         ByteArrayOutputStream output = new ByteArrayOutputStream( originalLength );
 
         for ( int n = 0; n < originalLength; n++ )  {
 
-            long r          = range / totFreq;
-            int  freqValue  = (int) Math.min( totFreq - 1, ( code - low ) / r );
-            int  symbol     = findSymbol( cumFreq, freqValue );
+            int value  = decoder.getFreqValue( model.totalFreq() );
+            int index  = model.findIndex( value );
+            int symbol = model.symbolAt( index );
+
+            decoder.decode( model.cumStartAt( index ), model.freqAt( index ), model.totalFreq() );
+            model.increment( symbol );
 
             output.write( symbol );
-
-            low   = ( low + r * cumFreq[symbol] ) & MASK;
-            range = r * freq[symbol];
-
-            while ( true )  {
-                if ( ( ( low ^ ( low + range ) ) & MASK ) < TOP )  {
-                    // The most significant byte has already been decided.
-                }
-                else if ( range < BOT )  {
-                    range = ( -low ) & ( BOT - 1 );
-                }
-                else  {
-                    break;
-                }
-                code  = ( ( code << 8 ) | nextByteOrZero( dis ) ) & MASK;
-                low   = ( low << 8 ) & MASK;
-                range = ( range << 8 ) & MASK;
-            }
         }
 
         return output.toByteArray();

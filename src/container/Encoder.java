@@ -3,7 +3,6 @@ package container;
 import compression.CompressionAlgorithm;
 import compression.CompressionType;
 import compression.entropy.huffman.HuffmanCoder;
-import compression.entropy.range.AdaptiveRangeCoder;
 import compression.entropy.range.RangeCoder;
 import compression.filters.bmp.BmpPaethHuffmanCoder;
 import compression.filters.wav.WavDeltaHuffmanCoder;
@@ -82,7 +81,6 @@ public class Encoder  {
             case RANGE         -> new RangeCoder();  
             case LZ77_RANGE    -> new LZ77RangeCoder();
             case LZW_RANGE     -> new LZWRangeCoder();
-            case RANGE_ADAPTIVE -> new AdaptiveRangeCoder();
         };
     }
 

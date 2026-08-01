@@ -2,7 +2,6 @@ This is a TODO list with improvements and new features;
 
 - Might add .bat/.sh to compile and run with easier commands (optional)
 - Check Range coding for optimizations
-- Make Dynamic calculations for range coding
 - Add Arithmetic coding
 - Add BWT + MTF
 - Update README

@@ -16,8 +16,7 @@ public final class AlgorithmCatalog  {
         CompressionType.LZW_HUFFMAN,
         CompressionType.RANGE,
         CompressionType.LZ77_RANGE,
-        CompressionType.LZW_RANGE,
-        CompressionType.RANGE_ADAPTIVE
+        CompressionType.LZW_RANGE
     );
 
     private static List<CompressionType> withExtras( CompressionType... extras )  {
@@ -39,7 +38,6 @@ public final class AlgorithmCatalog  {
             case RANGE          -> input.equals( "range" );
             case LZ77_RANGE     -> input.equals( "lzma" ) || input.equals( "lz77+range" );
             case LZW_RANGE      -> input.equals( "lzw+range" );
-            case RANGE_ADAPTIVE -> input.equals( "range-adaptive" ) || input.equals( "arange" );
             default             -> false;
         };
     }
@@ -68,7 +66,6 @@ public final class AlgorithmCatalog  {
             case RANGE         -> "Range Coding";
             case LZ77_RANGE    -> "LZMA";
             case LZW_RANGE     -> "LZW+Range";
-            case RANGE_ADAPTIVE -> "Range (Adaptive)";
         };
     }
 
