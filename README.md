@@ -4,7 +4,7 @@
 
 <img src = "/doc/resources/Ruffus.png" alt = "woofman logo" title = "Ruffus">
 
-`Woofman` is an open source encoding/decoding tool written in Java that uses Huffman algorithm to perform lossless data compression and decompression.
+`Woofman` is an open source encoding/decoding tool written in Java that uses Huffman and several other algorithms to perform lossless data compression and decompression.
 
 This project includes files saved in different formats as samples.
 
@@ -59,13 +59,13 @@ javac -d out $(find . -name "*.java")
 - For data **compression**
 
 ```shell
-java -cp out Main encode <source>
+java -cp out cli.Main encode <source>
 ```
 
 - For data **decompression**
 
 ```shell
-java -cp out Main decode <compressed_file>
+java -cp out cli.Main decode <compressed_file>
 ```
 
 > [!TIP]

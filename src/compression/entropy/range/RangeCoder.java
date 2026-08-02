@@ -17,6 +17,7 @@ public class RangeCoder implements CompressionAlgorithm  {
     private static final int ALPHABET_SIZE = 256;
 
     private int[] countRaw( byte[] data )  {
+
         int[] raw = new int[256];
         for ( byte b : data )  raw[ b & 0xFF ]++;
         return raw;
@@ -49,6 +50,7 @@ public class RangeCoder implements CompressionAlgorithm  {
     }
 
     private void writeFrequencyTable( DataOutputStream dos, int[] freq ) throws IOException  {
+
         Map<Integer, Integer> table = new LinkedHashMap<>();
         for ( int symbol = 0; symbol < 256; symbol++ )  {
             if ( freq[symbol] > 0 )  table.put( symbol, freq[symbol] );
@@ -57,6 +59,7 @@ public class RangeCoder implements CompressionAlgorithm  {
     }
 
     private int[] readFrequencyTable( DataInputStream dis ) throws IOException  {
+        
         int[] freq = new int[256];
         for ( Map.Entry<Integer, Integer> entry : FrequencyTableCodec.readSparseTable( dis ).entrySet() )  {
             freq[ entry.getKey() ] = entry.getValue();
@@ -65,6 +68,7 @@ public class RangeCoder implements CompressionAlgorithm  {
     }
 
     private Map<Integer, Integer> toMap( int[] freq )  {
+
         Map<Integer, Integer> map = new LinkedHashMap<>();
         for ( int symbol = 0; symbol < 256; symbol++ )  {
             if ( freq[symbol] > 0 )  map.put( symbol, freq[symbol] );
@@ -72,10 +76,11 @@ public class RangeCoder implements CompressionAlgorithm  {
         return map;
     }
 
-    private int measureHeaderBytes( int[] freq ) throws IOException  {
+    private byte[] probeFrequencyTable( int[] freq ) throws IOException  {
+
         ByteArrayOutputStream probe = new ByteArrayOutputStream();
         writeFrequencyTable( new DataOutputStream( probe ), freq );
-        return probe.size();
+        return probe.toByteArray();
     }
 
     @Override
@@ -96,8 +101,9 @@ public class RangeCoder implements CompressionAlgorithm  {
         int[] raw        = countRaw( data );
         int[] scaledFreq = scale( raw, data.length );
 
-        int staticHeaderBytes   = measureHeaderBytes( scaledFreq );
-        int adaptiveHeaderBytes = 0;   
+        byte[] staticHeader     = probeFrequencyTable( scaledFreq );
+        int    staticHeaderBytes   = staticHeader.length;
+        int    adaptiveHeaderBytes = 0;
 
         boolean useAdaptive = ModelSelector.shouldUseAdaptive( toMap( raw ), data.length, staticHeaderBytes, adaptiveHeaderBytes );
 
@@ -108,7 +114,7 @@ public class RangeCoder implements CompressionAlgorithm  {
             model = new AdaptiveFrequencyModel( ALPHABET_SIZE );
         }
         else  {
-            writeFrequencyTable( dos, scaledFreq );
+            dos.write( staticHeader );          
             model = new ArrayFrequencyModel( scaledFreq );
         }
 

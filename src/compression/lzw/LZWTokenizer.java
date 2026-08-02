@@ -2,76 +2,120 @@ package compression.lzw;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 
 public class LZWTokenizer  {
 
     static final int MAX_CODE_BITS = 12;
     static final int DICT_SIZE     = 1 << MAX_CODE_BITS;
-    static final int CLEAR_CODE    = 256;             // Resets dictionary
+    static final int CLEAR_CODE    = 256;                   // Resets dictionary
     static final int FIRST_DYNAMIC = 257;
 
-    private Map<String, Integer> freshDictionary()  {
+    private static final class LongIntMap  {
 
-        Map<String, Integer> dictionary = new HashMap<>();
-        for ( int i = 0; i < 256; i++ )  {
-            dictionary.put( String.valueOf( (char) i ), i );
+        private static final long EMPTY_KEY = -1L;
+        private static final long MULTIPLIER = 0x9E3779B97F4A7C15L;   // Fibonacci hashing
+
+        private final long[] keys;
+        private final int[]  values;
+        private final int    mask;
+
+        LongIntMap( int capacity )  {                  
+            keys   = new long[ capacity ];
+            values = new int[ capacity ];
+            mask   = capacity - 1;
+            clear();
         }
-        return dictionary;
+
+        void clear()  {
+            Arrays.fill( keys, EMPTY_KEY );
+        }
+
+        private int slotFor( long key )  {
+            return (int) ( ( key * MULTIPLIER ) >>> 40 ) & mask;
+        }
+
+        int get( long key )  {                         
+
+            int slot = slotFor( key );
+
+            while ( keys[slot] != EMPTY_KEY )  {
+                if ( keys[slot] == key )  return values[slot];
+                slot = ( slot + 1 ) & mask;
+            }
+            return -1;
+        }
+
+        void put( long key, int value )  {
+
+            int slot = slotFor( key );
+
+            while ( keys[slot] != EMPTY_KEY )  {
+                if ( keys[slot] == key )  { values[slot] = value; return; }
+                slot = ( slot + 1 ) & mask;
+            }
+            keys[slot]   = key;
+            values[slot] = value;
+        }
     }
 
-    private Map<Integer, String> freshReverseDictionary()  {
+    private int expand( int code, int[] prevCode, byte[] lastByte, byte[] scratch )  {
 
-        Map<Integer, String> dictionary = new HashMap<>();
-        for ( int i = 0; i < 256; i++ )  {
-            dictionary.put( i, String.valueOf( (char) i ) );
+        int idx = scratch.length;
+
+        while ( code >= 256 )  {
+            scratch[--idx] = lastByte[code];
+            code           = prevCode[code];
         }
-        return dictionary;
-    }
+        scratch[--idx] = (byte) code;              
 
-    private void writeString( ByteArrayOutputStream output, String s )  {
-
-        for ( int i = 0; i < s.length(); i++ )  {
-            output.write( s.charAt( i ) & 0xFF );
-        }
+        return idx;                                
     }
 
     public List<Integer> encode( byte[] data )  {
 
-        Map<String, Integer> dictionary = freshDictionary();
-        int nextCode = FIRST_DYNAMIC;
+        LongIntMap dictionary = new LongIntMap( 1 << 13 );    // 8192
+        int        nextCode   = FIRST_DYNAMIC;
 
         List<Integer> codes = new ArrayList<>();
 
-        String w = "";
-        for ( byte b : data )  {
+        int currentCode = -1;     
 
-            char   c  = (char) ( b & 0xFF );
-            String wc = w + c;
+        for ( byte raw : data )  {
 
-            if ( dictionary.containsKey( wc ) )  {
-                w = wc;
+            int b = raw & 0xFF;
+
+            if ( currentCode == -1 )  {
+                currentCode = b;                                 
                 continue;
             }
 
-            codes.add( dictionary.get( w ) );
+            long key  = ( (long) currentCode << 8 ) | b;
+            int  next = dictionary.get( key );
+
+            if ( next != -1 )  {
+                currentCode = next;
+                continue;
+            }
+
+            codes.add( currentCode );
 
             if ( nextCode < DICT_SIZE )  {
-                dictionary.put( wc, nextCode++ );
+                dictionary.put( key, nextCode++ );
             }
             else  {
                 codes.add( CLEAR_CODE );
-                dictionary = freshDictionary();
-                nextCode   = FIRST_DYNAMIC;
+                dictionary.clear();
+                nextCode = FIRST_DYNAMIC;
             }
 
-            w = String.valueOf( c );
+            currentCode = b;
         }
-        if ( !w.isEmpty() )  {
-            codes.add( dictionary.get( w ) );
+
+        if ( currentCode != -1 )  {
+            codes.add( currentCode );
         }
 
         return codes;
@@ -79,44 +123,49 @@ public class LZWTokenizer  {
 
     public byte[] decode( List<Integer> codes )  {
 
-        Map<Integer, String> dictionary = freshReverseDictionary();
-        int nextCode = FIRST_DYNAMIC;
+        int[]  prevCode = new int[ DICT_SIZE ];
+        byte[] lastByte = new byte[ DICT_SIZE ];
+        int    nextCode = FIRST_DYNAMIC;
 
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        String                w      = null;
+        byte[] scratch = new byte[ DICT_SIZE ];    
+
+        ByteArrayOutputStream output         = new ByteArrayOutputStream();
+        int                   prevOutputCode = -1;
 
         for ( int k : codes )  {
 
             if ( k == CLEAR_CODE )  {
-                dictionary = freshReverseDictionary();
-                nextCode   = FIRST_DYNAMIC;
-                w          = null;
+                nextCode       = FIRST_DYNAMIC;
+                prevOutputCode = -1;
                 continue;
             }
 
-            if ( w == null )  {
-                w = dictionary.get( k );
-                writeString( output, w );
-                continue;
-            }
+            byte firstByteOfEntry;
 
-            String entry;
-            if ( dictionary.containsKey( k ) )  {
-                entry = dictionary.get( k );
+            if ( k < nextCode )  {
+
+                int idx = expand( k, prevCode, lastByte, scratch );
+                output.write( scratch, idx, scratch.length - idx );
+                firstByteOfEntry = scratch[idx];
             }
-            else if ( k == nextCode )  {
-                entry = w + w.charAt( 0 );
+            else if ( k == nextCode && prevOutputCode != -1 )  {                     // case KwKwK
+
+                int idx = expand( prevOutputCode, prevCode, lastByte, scratch );
+                output.write( scratch, idx, scratch.length - idx );
+                output.write( scratch[idx] );
+                firstByteOfEntry = scratch[idx];
             }
             else  {
                 throw new IllegalStateException( "Invalid LZW code: " + k );
             }
 
-            writeString( output, entry );
-
-            if ( nextCode < DICT_SIZE )  {
-                dictionary.put( nextCode++, w + entry.charAt( 0 ) );
+            if ( prevOutputCode != -1 && nextCode < DICT_SIZE )  {
+                prevCode[ nextCode ] = prevOutputCode;
+                lastByte[ nextCode ] = firstByteOfEntry;
+                nextCode++;
             }
-            w = entry;
+
+            prevOutputCode = k;
         }
 
         return output.toByteArray();

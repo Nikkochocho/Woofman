@@ -22,15 +22,16 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
     private int lengthToSymbol( int length )  { return LENGTH_SYMBOL_BASE + ( length - MIN_MATCH ); }
     private int symbolToLength( int symbol )  { return ( symbol - LENGTH_SYMBOL_BASE ) + MIN_MATCH; }
 
-    private int measureBytes( HeaderWriter writer ) throws IOException  {
+    private interface HeaderWriter  {
+        
+        void write( DataOutputStream dos ) throws IOException;
+    }
+
+    private byte[] probeBytes( HeaderWriter writer ) throws IOException  {
 
         ByteArrayOutputStream probe = new ByteArrayOutputStream();
         writer.write( new DataOutputStream( probe ) );
-        return probe.size();
-    }
-
-    private interface HeaderWriter  {
-        void write( DataOutputStream dos ) throws IOException;
+        return probe.toByteArray();
     }
 
     private SymbolModel selectAndWriteModel( DataOutputStream dos, Map<Integer, Integer> freq, int totalSymbols ) throws IOException  {
@@ -43,19 +44,19 @@ public class LZ77RangeCoder implements CompressionAlgorithm  {
 
         Map<Integer, Integer> scaledFreq = FrequencyModel.scale( freq );
 
-        int staticHeaderBytes   = measureBytes( d -> FrequencyTableCodec.writeSparseTable( d, scaledFreq ) );
-        int adaptiveHeaderBytes = measureBytes( d -> FrequencyTableCodec.writeSparseAlphabet( d, freq.keySet() ) );
+        byte[] staticHeader   = probeBytes( d -> FrequencyTableCodec.writeSparseTable( d, scaledFreq ) );
+        byte[] adaptiveHeader = probeBytes( d -> FrequencyTableCodec.writeSparseAlphabet( d, freq.keySet() ) );
 
-        boolean useAdaptive = ModelSelector.shouldUseAdaptive( freq, totalSymbols, staticHeaderBytes, adaptiveHeaderBytes );
+        boolean useAdaptive = ModelSelector.shouldUseAdaptive( freq, totalSymbols, staticHeader.length, adaptiveHeader.length );
 
         dos.writeByte( useAdaptive ? 1 : 0 );
 
         if ( useAdaptive )  {
-            FrequencyTableCodec.writeSparseAlphabet( dos, freq.keySet() );
+            dos.write( adaptiveHeader );
             return new SparseAdaptiveFrequencyModel( freq.keySet() );
         }
 
-        FrequencyTableCodec.writeSparseTable( dos, scaledFreq );
+        dos.write( staticHeader );
         return new FrequencyModel( scaledFreq );
     }
 

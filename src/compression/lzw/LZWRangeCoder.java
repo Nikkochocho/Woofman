@@ -16,15 +16,16 @@ public class LZWRangeCoder implements CompressionAlgorithm  {
 
     private final LZWTokenizer tokenizer = new LZWTokenizer();
 
-    private int measureBytes( HeaderWriter writer ) throws IOException  {
+    private interface HeaderWriter  {
+        
+        void write( DataOutputStream dos ) throws IOException;
+    }
+
+    private byte[] probeBytes( HeaderWriter writer ) throws IOException  {
 
         ByteArrayOutputStream probe = new ByteArrayOutputStream();
         writer.write( new DataOutputStream( probe ) );
-        return probe.size();
-    }
-
-    private interface HeaderWriter  {
-        void write( DataOutputStream dos ) throws IOException;
+        return probe.toByteArray();
     }
 
     @Override
@@ -51,20 +52,20 @@ public class LZWRangeCoder implements CompressionAlgorithm  {
 
         Map<Integer, Integer> scaledFreq = FrequencyModel.scale( codeFreq );
 
-        int staticHeaderBytes   = measureBytes( d -> FrequencyTableCodec.writeSparseTable( d, scaledFreq ) );
-        int adaptiveHeaderBytes = measureBytes( d -> FrequencyTableCodec.writeSparseAlphabet( d, codeFreq.keySet() ) );
+        byte[] staticHeader   = probeBytes( d -> FrequencyTableCodec.writeSparseTable( d, scaledFreq ) );
+        byte[] adaptiveHeader = probeBytes( d -> FrequencyTableCodec.writeSparseAlphabet( d, codeFreq.keySet() ) );
 
-        boolean useAdaptive = ModelSelector.shouldUseAdaptive( codeFreq, codes.size(), staticHeaderBytes, adaptiveHeaderBytes );
+        boolean useAdaptive = ModelSelector.shouldUseAdaptive( codeFreq, codes.size(), staticHeader.length, adaptiveHeader.length );
 
         dos.writeByte( useAdaptive ? 1 : 0 );
 
         SymbolModel model;
         if ( useAdaptive )  {
-            FrequencyTableCodec.writeSparseAlphabet( dos, codeFreq.keySet() );
+            dos.write( adaptiveHeader );
             model = new SparseAdaptiveFrequencyModel( codeFreq.keySet() );
         }
         else  {
-            FrequencyTableCodec.writeSparseTable( dos, scaledFreq );
+            dos.write( staticHeader );
             model = new FrequencyModel( scaledFreq );
         }
 
