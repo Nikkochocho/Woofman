@@ -12,7 +12,10 @@ public enum CompressionType  {
     LZW_HUFFMAN( (byte) 7 ),
     RANGE( (byte) 8 ),
     LZ77_RANGE( (byte) 9 ),
-    LZW_RANGE( (byte) 10 );
+    LZW_RANGE( (byte) 10 ),
+    ARITHMETIC( (byte) 11),
+    LZ77_ARITHMETIC( (byte) 12),
+    LZW_ARITHMETIC( (byte) 13);
 
     private final byte code;
 

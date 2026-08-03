@@ -16,7 +16,10 @@ public final class AlgorithmCatalog  {
         CompressionType.LZW_HUFFMAN,
         CompressionType.RANGE,
         CompressionType.LZ77_RANGE,
-        CompressionType.LZW_RANGE
+        CompressionType.LZW_RANGE,
+        CompressionType.ARITHMETIC,
+        CompressionType.LZ77_ARITHMETIC,
+        CompressionType.LZW_ARITHMETIC
     );
 
     private static List<CompressionType> withExtras( CompressionType... extras )  {
@@ -29,16 +32,19 @@ public final class AlgorithmCatalog  {
     private static boolean matchesFriendlyName( CompressionType type, String input )  {
         
         return switch ( type )  {
-            case LZ77_HUFFMAN   -> input.equals( "deflate" ) || input.equals( "lz77+huffman" );
-            case LZ77_ONLY      -> input.equals( "lz77" );
-            case DELTA_HUFFMAN  -> input.equals( "delta" );
-            case PAETH_HUFFMAN  -> input.equals( "paeth" );
-            case LZW            -> input.equals( "lzw" );
-            case LZW_HUFFMAN    -> input.equals( "lzw+huffman" );
-            case RANGE          -> input.equals( "range" );
-            case LZ77_RANGE     -> input.equals( "lzma" ) || input.equals( "lz77+range" );
-            case LZW_RANGE      -> input.equals( "lzw+range" );
-            default             -> false;
+            case LZ77_HUFFMAN    -> input.equals( "deflate" ) || input.equals( "lz77+huffman" );
+            case LZ77_ONLY       -> input.equals( "lz77" );
+            case DELTA_HUFFMAN   -> input.equals( "delta" );
+            case PAETH_HUFFMAN   -> input.equals( "paeth" );
+            case LZW             -> input.equals( "lzw" );
+            case LZW_HUFFMAN     -> input.equals( "lzw+huffman" );
+            case RANGE           -> input.equals( "range" );
+            case LZ77_RANGE      -> input.equals( "lzma" ) || input.equals( "lz77+range" );
+            case LZW_RANGE       -> input.equals( "lzw+range" );
+            case ARITHMETIC      -> input.equals( "arithmetic" );
+            case LZ77_ARITHMETIC -> input.equals( "lzari" ) || input.equals( "lz77+arithmetic" );
+            case LZW_ARITHMETIC  -> input.equals( "lzw+arithmetic" );
+            default              -> false;
         };
     }
 
@@ -55,17 +61,20 @@ public final class AlgorithmCatalog  {
     public static String friendlyName( CompressionType type )  {
 
         return switch ( type )  {
-            case HUFFMAN       -> "Huffman";
-            case LZ77_HUFFMAN  -> "DEFLATE";
-            case RLE           -> "RLE";
-            case LZ77_ONLY     -> "LZ77";
-            case DELTA_HUFFMAN -> "Delta";
-            case PAETH_HUFFMAN -> "Paeth";
-            case LZW           -> "LZW";
-            case LZW_HUFFMAN   -> "LZW + Huffman";
-            case RANGE         -> "Range Coding";
-            case LZ77_RANGE    -> "LZMA";
-            case LZW_RANGE     -> "LZW+Range";
+            case HUFFMAN         -> "Huffman";
+            case LZ77_HUFFMAN    -> "DEFLATE";
+            case RLE             -> "RLE";
+            case LZ77_ONLY       -> "LZ77";
+            case DELTA_HUFFMAN   -> "Delta";
+            case PAETH_HUFFMAN   -> "Paeth";
+            case LZW             -> "LZW";
+            case LZW_HUFFMAN     -> "LZW + Huffman";
+            case RANGE           -> "Range Coding";
+            case LZ77_RANGE      -> "LZMA";
+            case LZW_RANGE       -> "LZW + Range";
+            case ARITHMETIC      -> "Arithmetic Coding";
+            case LZ77_ARITHMETIC -> "LZARI";
+            case LZW_ARITHMETIC  -> "LZW + Arithmetic";
         };
     }
 

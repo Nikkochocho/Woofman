@@ -2,13 +2,16 @@ package container;
 
 import compression.CompressionAlgorithm;
 import compression.CompressionType;
+import compression.entropy.arithmetic.ArithmeticCoder;
 import compression.entropy.huffman.HuffmanCoder;
 import compression.entropy.range.RangeCoder;
 import compression.filters.bmp.BmpPaethHuffmanCoder;
 import compression.filters.wav.WavDeltaHuffmanCoder;
+import compression.lz77.LZ77ArithmeticCoder;
 import compression.lz77.LZ77HuffmanCoder;
 import compression.lz77.LZ77OnlyCoder;
 import compression.lz77.LZ77RangeCoder;
+import compression.lzw.LZWArithmeticCoder;
 import compression.lzw.LZWCoder;
 import compression.lzw.LZWHuffmanCoder;
 import compression.lzw.LZWRangeCoder;
@@ -107,17 +110,20 @@ public class Decoder  {
                 dis.readFully( compressedBytes );
 
                 CompressionAlgorithm algorithm = switch ( type )  {
-                    case HUFFMAN       -> new HuffmanCoder();
-                    case LZ77_HUFFMAN  -> new LZ77HuffmanCoder();
-                    case RLE           -> new RLECoder();
-                    case LZ77_ONLY     -> new LZ77OnlyCoder();
-                    case DELTA_HUFFMAN -> new WavDeltaHuffmanCoder();
-                    case PAETH_HUFFMAN -> new BmpPaethHuffmanCoder();
-                    case LZW           -> new LZWCoder();
-                    case LZW_HUFFMAN   -> new LZWHuffmanCoder();
-                    case RANGE         -> new RangeCoder();
-                    case LZ77_RANGE    -> new LZ77RangeCoder();
-                    case LZW_RANGE     -> new LZWRangeCoder();
+                    case HUFFMAN         -> new HuffmanCoder();
+                    case LZ77_HUFFMAN    -> new LZ77HuffmanCoder();
+                    case RLE             -> new RLECoder();
+                    case LZ77_ONLY       -> new LZ77OnlyCoder();
+                    case DELTA_HUFFMAN   -> new WavDeltaHuffmanCoder();
+                    case PAETH_HUFFMAN   -> new BmpPaethHuffmanCoder(); 
+                    case LZW             -> new LZWCoder();  
+                    case LZW_HUFFMAN     -> new LZWHuffmanCoder();   
+                    case RANGE           -> new RangeCoder();  
+                    case LZ77_RANGE      -> new LZ77RangeCoder();
+                    case LZW_RANGE       -> new LZWRangeCoder();
+                    case ARITHMETIC      -> new ArithmeticCoder();
+                    case LZ77_ARITHMETIC -> new LZ77ArithmeticCoder();
+                    case LZW_ARITHMETIC  -> new LZWArithmeticCoder();
                 };
 
                 byte[] decompressed  = algorithm.decompress( compressedBytes );
