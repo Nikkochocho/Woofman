@@ -19,7 +19,8 @@ public final class AlgorithmCatalog  {
         CompressionType.LZW_RANGE,
         CompressionType.ARITHMETIC,
         CompressionType.LZ77_ARITHMETIC,
-        CompressionType.LZW_ARITHMETIC
+        CompressionType.LZW_ARITHMETIC,
+        CompressionType.BWT
     );
 
     private static List<CompressionType> withExtras( CompressionType... extras )  {
@@ -44,6 +45,7 @@ public final class AlgorithmCatalog  {
             case ARITHMETIC      -> input.equals( "arithmetic" );
             case LZ77_ARITHMETIC -> input.equals( "lzari" ) || input.equals( "lz77+arithmetic" );
             case LZW_ARITHMETIC  -> input.equals( "lzw+arithmetic" );
+            case BWT             -> input.equals( "bwt" ) || input.equals( "bwt+mtf" );
             default              -> false;
         };
     }
@@ -75,6 +77,7 @@ public final class AlgorithmCatalog  {
             case ARITHMETIC      -> "Arithmetic Coding";
             case LZ77_ARITHMETIC -> "LZARI";
             case LZW_ARITHMETIC  -> "LZW + Arithmetic";
+            case BWT             -> "BWT + MTF";
         };
     }
 

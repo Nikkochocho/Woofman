@@ -1,5 +1,5 @@
 This is a TODO list with improvements and new features;
 
 - Might add .bat/.sh to compile and run with easier commands (optional)
-- Add BWT + MTF for bzip2 compression
+- Add BWT + MTF + RLE0 option for bzip2 compression
 - Update README

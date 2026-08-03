@@ -2,6 +2,7 @@ package container;
 
 import compression.CompressionAlgorithm;
 import compression.CompressionType;
+import compression.blocksort.BWTCoder;
 import compression.entropy.arithmetic.ArithmeticCoder;
 import compression.entropy.huffman.HuffmanCoder;
 import compression.entropy.range.RangeCoder;
@@ -124,6 +125,7 @@ public class Decoder  {
                     case ARITHMETIC      -> new ArithmeticCoder();
                     case LZ77_ARITHMETIC -> new LZ77ArithmeticCoder();
                     case LZW_ARITHMETIC  -> new LZWArithmeticCoder();
+                    case BWT             -> new BWTCoder();
                 };
 
                 byte[] decompressed  = algorithm.decompress( compressedBytes );

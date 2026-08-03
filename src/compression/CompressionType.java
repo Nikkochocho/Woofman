@@ -14,8 +14,9 @@ public enum CompressionType  {
     LZ77_RANGE( (byte) 9 ),
     LZW_RANGE( (byte) 10 ),
     ARITHMETIC( (byte) 11),
-    LZ77_ARITHMETIC( (byte) 12),
-    LZW_ARITHMETIC( (byte) 13);
+    LZ77_ARITHMETIC( (byte) 12 ),
+    LZW_ARITHMETIC( (byte) 13 ),
+    BWT( (byte) 14 );
 
     private final byte code;
 
