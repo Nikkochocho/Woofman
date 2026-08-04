@@ -126,6 +126,7 @@ public class Decoder  {
                     case LZ77_ARITHMETIC -> new LZ77ArithmeticCoder();
                     case LZW_ARITHMETIC  -> new LZWArithmeticCoder();
                     case BWT             -> new BWTCoder();
+                    case BZIP2           -> new BWTCoder( true );
                 };
 
                 byte[] decompressed  = algorithm.decompress( compressedBytes );

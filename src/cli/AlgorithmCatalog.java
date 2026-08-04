@@ -20,7 +20,8 @@ public final class AlgorithmCatalog  {
         CompressionType.ARITHMETIC,
         CompressionType.LZ77_ARITHMETIC,
         CompressionType.LZW_ARITHMETIC,
-        CompressionType.BWT
+        CompressionType.BWT,
+        CompressionType.BZIP2
     );
 
     private static List<CompressionType> withExtras( CompressionType... extras )  {
@@ -46,6 +47,7 @@ public final class AlgorithmCatalog  {
             case LZ77_ARITHMETIC -> input.equals( "lzari" ) || input.equals( "lz77+arithmetic" );
             case LZW_ARITHMETIC  -> input.equals( "lzw+arithmetic" );
             case BWT             -> input.equals( "bwt" ) || input.equals( "bwt+mtf" );
+            case BZIP2           -> input.equals( "bzip2 ");
             default              -> false;
         };
     }
@@ -78,6 +80,7 @@ public final class AlgorithmCatalog  {
             case LZ77_ARITHMETIC -> "LZARI";
             case LZW_ARITHMETIC  -> "LZW + Arithmetic";
             case BWT             -> "BWT + MTF";
+            case BZIP2           -> "BZIP2";
         };
     }
 

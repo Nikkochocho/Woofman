@@ -10,9 +10,35 @@ import java.io.*;
 
 public class BWTCoder implements CompressionAlgorithm  {
 
-    // Same as bzip2
-    private static final int BLOCK_SIZE    = 900_000;
-    private static final int ALPHABET_SIZE = 256;
+    private static final int BLOCK_SIZE = 900_000;          // same as BZIP2
+
+    private final boolean useRLE;
+
+    private static int[] toSymbols( byte[] mtf )  {
+
+        int[] symbols = new int[ mtf.length ];
+        for ( int i = 0; i < mtf.length; i++ )  symbols[i] = mtf[i] & 0xFF;
+        return symbols;
+    }
+
+    private static byte[] toBytes( int[] symbols )  {
+
+        byte[] bytes = new byte[ symbols.length ];
+        for ( int i = 0; i < symbols.length; i++ )  bytes[i] = (byte) symbols[i];
+        return bytes;
+    }
+
+    private int alphabetSize()  {
+        return useRLE ? RLE0.ALPHABET_SIZE : 256;
+    }
+
+    public BWTCoder()  {
+        this( false );
+    }
+
+    public BWTCoder( boolean useRLE )  {
+        this.useRLE = useRLE;
+    }
 
     @Override
     public byte[] compress( byte[] data ) throws IOException  {
@@ -28,7 +54,11 @@ public class BWTCoder implements CompressionAlgorithm  {
             return baos.toByteArray();
         }
 
-        RangeEncoder encoder = new RangeEncoder( dos );                         // using range coder as entropy algorithm
+        // Um único RangeEncoder para o arquivo inteiro: o modelo adaptativo é
+        // reiniciado a cada bloco (as estatísticas de um bloco não valem para o
+        // próximo), mas o estado low/range do range coder é agnóstico a isso e
+        // pode fluir continuamente -- evita reabrir o stream (4 bytes) por bloco.
+        RangeEncoder encoder = new RangeEncoder( dos );
 
         for ( int offset = 0; offset < data.length; offset += BLOCK_SIZE )  {
 
@@ -39,14 +69,15 @@ public class BWTCoder implements CompressionAlgorithm  {
             BWT.Result bwtResult = BWT.transform( block );
             byte[]     mtf       = MTF.encode( bwtResult.transformed );
 
+            int[] symbols = useRLE ? RLE0.encode( mtf ) : toSymbols( mtf );
+
             dos.writeInt( length );
             dos.writeInt( bwtResult.index );
+            dos.writeInt( symbols.length );
 
-            SymbolModel model = new AdaptiveFrequencyModel( ALPHABET_SIZE );
+            SymbolModel model = new AdaptiveFrequencyModel( alphabetSize() );
 
-            for ( byte b : mtf )  {
-
-                int symbol = b & 0xFF;
+            for ( int symbol : symbols )  {
                 encoder.encode( model.cumStart( symbol ), model.freqOf( symbol ), model.totalFreq() );
                 model.increment( symbol );
             }
@@ -73,24 +104,26 @@ public class BWTCoder implements CompressionAlgorithm  {
 
         for ( int b = 0; b < blockCount; b++ )  {
 
-            int length = dis.readInt();
-            int index  = dis.readInt();
+            int length      = dis.readInt();
+            int index       = dis.readInt();
+            int symbolCount = dis.readInt();
 
-            SymbolModel model = new AdaptiveFrequencyModel( ALPHABET_SIZE );
-            byte[]      mtf   = new byte[length];
+            SymbolModel model   = new AdaptiveFrequencyModel( alphabetSize() );
+            int[]       symbols = new int[symbolCount];
 
-            for ( int i = 0; i < length; i++ )  {
+            for ( int i = 0; i < symbolCount; i++ )  {
 
-                int value = decoder.getFreqValue( model.totalFreq() );
-                int idx   = model.findIndex( value );
+                int value  = decoder.getFreqValue( model.totalFreq() );
+                int idx    = model.findIndex( value );
                 int symbol = model.symbolAt( idx );
 
                 decoder.decode( model.cumStartAt( idx ), model.freqAt( idx ), model.totalFreq() );
                 model.increment( symbol );
 
-                mtf[i] = (byte) symbol;
+                symbols[i] = symbol;
             }
 
+            byte[] mtf         = useRLE ? RLE0.decode( symbols ) : toBytes( symbols );
             byte[] transformed = MTF.decode( mtf );
             byte[] block       = BWT.inverseTransform( transformed, index );
 

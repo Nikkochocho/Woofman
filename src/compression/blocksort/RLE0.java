@@ -7,12 +7,6 @@ import java.util.List;
 
 public final class RLE0  {
 
-    public static final int RUNA = 0;
-    public static final int RUNB = 1;
-
-    // 0=RUNA, 1=RUNB
-    public static final int ALPHABET_SIZE = 257;
-
     private RLE0()  {}
 
     private static void emitRun( List<Integer> out, int runLength )  {
@@ -25,6 +19,11 @@ public final class RLE0  {
             n /= 2;
         }
     }
+
+    public static final int RUNA = 0;
+    public static final int RUNB = 1;
+
+    public static final int ALPHABET_SIZE = 257;
 
     public static int[] encode( byte[] mtf )  {
 
